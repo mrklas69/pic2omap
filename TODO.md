@@ -10,7 +10,11 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 
 ## Stage 4 — Symbol recognition
 
-- [ ] **Vrstevnice (Brown)** — první symbol detector. Vstup: `cat_brown_skeleton.png` (1px středovky). Cíl: rozdělit na 101 Index contour / 102 Contour / 103 Form line podle tloušťky původní čáry a stylu (form line je čárkovaná).
+- [x] **Vrstevnice (Brown) v1** — thickness peak detector (`brown_line_v1.py`). 138 objektů na forest sample (112 × 101, 26 × 102). Over-segmentace 2.09×, řeší re-link iterace.
+- [~] **109 Erosion gully discrimination** — `erosion_gully_v1` (crossing + pointed cap) odpojen v cmd_detect, 0/17 precision. GT je jen **2 × 109** ve forest sample. Signály thickness/cap nestačí — vyžaduje pozici-based check ("leží mezi 101 sousedy"). Soubor zůstává jako reference. Detail: viz memory `erosion-gully-vs-index-contour`.
+- [ ] **110 Small erosion gully** — line_width=0 + mid_symbol Brown tečka. 16× v forest sample. **Patří do point/dot detectoru**, ne brown_line. Bude součást budoucího `brown_dot_v1`.
+- [ ] **Stage 2/3 brown skeleton contamination** — urban roads (forest sample #122, ISSprOM 529/503) padají do cat_brown_clean.png. Color separator nebo category mapping zachycuje sprint symboly jako BROWN. Vyšetřit color_category overrides nebo per-OMAP-version paletu.
+- [ ] **103 Form line (dashed brown)** — dash pattern detector v skeletonu (mezi-mezera mezery). Ujme se další chunk z mid peaku.
 - [ ] **Bodové symboly** — z `cat_*_point.png` rozpoznat ISOM symboly (boulder 206/207, knoll 109, pit 114) podle tvaru. Šablonové matchingem nebo signaturou (compactness, kruhovitost, dot vs X).
 
 ## Stage 2 — Doplnění

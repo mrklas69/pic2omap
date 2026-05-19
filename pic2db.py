@@ -99,8 +99,9 @@ def cmd_detect(args: argparse.Namespace) -> int:
     next_id = 1
 
     # --- Brown line detector v1 ---
-    # Aktivuje se pokud filter chybí, nebo obsahuje 101/102.
-    if symbols_filter is None or symbols_filter & {"101", "102"}:
+    # Aktivuje se pokud filter chybí, nebo obsahuje 101/102/109 (erosion gully
+    # je refinement nad 102, takže filter 109 znamená "chci celý brown line pipeline").
+    if symbols_filter is None or symbols_filter & {"101", "102", "109"}:
         from brown_line_v1 import detect as detect_brown_line
         brown_objs, brown_mask = detect_brown_line(
             out_dir=out_dir,
@@ -117,6 +118,14 @@ def cmd_detect(args: argparse.Namespace) -> int:
         print(f"  brown_line_v1:    {len(brown_objs):>4} objektů "
               f"({sum(1 for o in brown_objs if o.symbol_code == '101'):>3} × 101, "
               f"{sum(1 for o in brown_objs if o.symbol_code == '102'):>3} × 102)")
+
+        # --- Erosion gully refinement (DISABLED) ---
+        # erosion_gully_v1 experimenty (crossing-only, endpoint blob, pointed cap)
+        # nedokázaly spolehlivě odlišit 109 od 102 na našem rozlišení.
+        # GT forest sample = jen 2 × 109, detektor over-claimed. Vyžaduje pozici-based
+        # check (sousedi 101) — odloženo na v2. Soubor erosion_gully_v1.py drží
+        # crossing_signal + pointed_cap_count helpery pro budoucí re-use.
+        # Viz memory `erosion-gully-vs-index-contour`.
 
     # Post-filter na --symbols (KISS — detector spustí vše, filter až po).
     # Důvod: detektory budou produkovat víc symbol_codes (101 + 102 z jednoho běhu),

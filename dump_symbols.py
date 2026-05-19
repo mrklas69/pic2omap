@@ -12,10 +12,8 @@ from collections import Counter
 from pathlib import Path
 
 # Windows konzole má cp1250 / cp852 — vynutíme UTF-8, ať se tiskne česky správně.
-# reconfigure() je dostupný od Python 3.7. Pokud stdout není TextIOWrapper
-# (např. piped do souboru), reconfigure se nevolá (chrání proti AttributeError).
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
+from cli_utils import force_utf8_console
+force_utf8_console()
 
 from omap_model import (
     AreaSymbol,

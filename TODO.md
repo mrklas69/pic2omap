@@ -44,6 +44,10 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 
 - [ ] **SymbolProfile** — `symbol_profile.py`: per-symbol key features (line width v px po georef, dashed Y/N, dash period, point shape signature, area pattern fingerprint). Builder ze `SymbolLibrary`.
 
+## Parser
+
+- [ ] **CombinedSymbol parts parsing** — `_parse_combined_symbol` v `omap_parser.py` zatím vrací prázdný `parts=[]`. Doplnit dohledáním struktury v OMAP spec (`<symbol type="16">`) a parsováním sub-symbolových odkazů. V `complete map.omap` ~9 combined symbolů (železnice apod.), zatím není blocker pro detekci.
+
 ## Dokumentace
 
 - [ ] **Single source of truth pro pipeline status** — tabulka 8 stages se ☐/✓ existuje na 5+ místech (README, IDEAS, DIARY). Drift hrozí. Návrh: README = kanonický, ostatní jen odkazují. Vyřešit při příštím `%AUDIT:DOCS`.

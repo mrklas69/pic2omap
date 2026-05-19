@@ -33,8 +33,8 @@ import sys
 from pathlib import Path
 
 # UTF-8 stdout pro českou diakritiku ve Windows konzoli.
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
+from cli_utils import force_utf8_console
+force_utf8_console()
 
 from components import (
     format_components_report,

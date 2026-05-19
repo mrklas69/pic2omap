@@ -80,10 +80,8 @@ def render_class_mask(
 
 
 def main() -> None:
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")
-    if hasattr(sys.stderr, "reconfigure"):
-        sys.stderr.reconfigure(encoding="utf-8")
+    from cli_utils import force_utf8_console
+    force_utf8_console()
 
     parser = argparse.ArgumentParser(
         description="Border-based klasifikace brown skeleton segmentů "

@@ -2,16 +2,20 @@
 pic2db — entry point pro detekci a manipulaci s DB mezivrstvou.
 
 Subcommands:
-  detect  — spustí detekci symbolů, zapíše iter_N.json
+  detect  — spustí detekci symbolů, zapíše iter_N.json + 16-bit claim mask
   list    — vypíše objekty v DB (filtrovatelné --symbols)
-  mark    — overlay objektů přes background (--with-ids pro popisky)  [NOT IMPLEMENTED]
+  mark    — overlay objektů přes background (--with-ids pro popisky)
   diff    — porovnání dvou iterací                                    [NOT IMPLEMENTED]
   export  — db2omap serializace do OMAP XML                           [NOT IMPLEMENTED]
 
 Kanonický popis viz docs/db_schema.md.
 
-Stav: skeleton router. `detect` produkuje prázdný snapshot, `list` ho přečte.
-Reálné detektory přijdou v dalším kroku.
+Stav (Sezení 6): `detect` orchestruje orientation_v1 + brown_line_v1 +
+area_v1 (GREEN, YELLOW). `list` + `mark` produkční. `diff` + `export` stuby.
+
+Předpoklad pro `detect`: Stage 2 + Stage 3 výstupy musí existovat
+(`output/<sample>/{morphology,skeleton,components}/`). Spusť nejdřív
+`separate_demo.py` + `stage3_demo.py`.
 """
 
 from __future__ import annotations
@@ -48,9 +52,13 @@ def _resolve_db_path(out_dir: Path, iteration: int | None) -> Path:
         n = int(latest_file.read_text().strip())
         return db_dir / f"iter_{n}.json"
 
-    # Fallback: scan adresáře. sorted() na ['iter_1.json', 'iter_10.json'] dá
-    # špatné pořadí (lexikograficky 10 < 2), ale pro malá čísla iterací OK.
-    candidates = sorted((db_dir).glob("iter_*.json"))
+    # Fallback: scan adresáře s natural sortem (iter_2 < iter_10).
+    # Lexikografický sorted() by dal špatné pořadí (iter_10 < iter_2 jako string).
+    # key extraktor: "iter_42.json" → 42 (split na '_', druhá část je číslo).
+    candidates = sorted(
+        db_dir.glob("iter_*.json"),
+        key=lambda p: int(p.stem.split("_")[1]),
+    )
     if not candidates:
         raise SystemExit(f"V {db_dir} žádné iter_*.json — spusť `detect` první.")
     return candidates[-1]
@@ -507,11 +515,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
-    # Windows konzole: vynutíme UTF-8 pro stdout/stderr, jinak české znaky padají.
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")
-    if hasattr(sys.stderr, "reconfigure"):
-        sys.stderr.reconfigure(encoding="utf-8")
+    # UTF-8 pro Windows konzoli (jinak diakritika v reportech rozsekaná).
+    from cli_utils import force_utf8_console
+    force_utf8_console()
 
     parser = build_parser()
     args = parser.parse_args()

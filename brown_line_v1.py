@@ -42,7 +42,7 @@ from peak_visualizer import classify_segments
 CONFIDENCE_THIN = 0.85    # → 101 Contour
 CONFIDENCE_THICK = 0.80   # → 102 Index contour
 
-DETECTION_METHOD = "brown_thickness_v1"
+DETECTION_METHOD = "brown_line_v1"
 
 
 def detect(
@@ -88,7 +88,7 @@ def detect(
     labels, groups = classify_segments(skeleton_bin, clean_bin)
 
     h, w = image_shape
-    # uint16 = max 65535 objektů per iter; pro typickou mapu (max ~10k objektů) dost.
+    # uint16 claim mask — viz docs/db_schema.md (kapacita 65535 ID per iter).
     claim_mask = np.zeros((h, w), dtype=np.uint16)
     objects: list[MapObject] = []
 

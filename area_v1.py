@@ -89,7 +89,8 @@ def _is_vertical_stripe(
     # north=up rastr. Forest sample fallback orientation=0 spadne sem.
     if abs(map_orientation_deg) > 5.0:
         # Rotovaná mapa — bbox není přímo srovnatelný s "svislé". v1 skip.
-        # @TODO v2: rotovat (comp_w, comp_h) podle orientation a pak měřit.
+        # v2: rotovat (comp_w, comp_h) podle orientation a pak měřit.
+        # Viz TODO.md "Stripe filter pro rotated maps".
         return False
     if comp_w > STRIPE_MAX_WIDTH:
         return False
@@ -146,7 +147,9 @@ def detect(
     if category not in DEFAULT_SYMBOL_PER_CATEGORY:
         raise SystemExit(f"area_v1 nepodporuje kategorii {category} (jen GREEN, YELLOW).")
     symbol_code = DEFAULT_SYMBOL_PER_CATEGORY[category]
-    detection_method = f"{category.value}_area_v1"
+    # detection_method = jméno detektoru (= název souboru), ne per-kategorie.
+    # Kategorie už drží MapObject.category — duplikovat ji sem by porušilo SLAP.
+    detection_method = "area_v1"
 
     # Per-category threshold (s možností override přes argument).
     if min_area_px is None:

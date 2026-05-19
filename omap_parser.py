@@ -401,10 +401,7 @@ def _parse_combined_symbol(elem: ET.Element) -> CombinedSymbol:
     """
     Combined symbol = kombinace více sub-symbolů. Strukturu zatím neznáme
     detailně z testovacích dat — uložíme jako prázdný parts seznam a doplníme,
-    až narazíme na konkrétní data.
-
-    TODO: dohledat strukturu v OMAP spec a doplnit. Combined symbolů je v
-    complete map.omap jen ~9, takže to není blocker.
+    až narazíme na konkrétní data. Viz TODO.md.
     """
     return CombinedSymbol(
         **_common_symbol_kwargs(elem),

@@ -122,11 +122,8 @@ def format_top_segments(
 
 
 def main() -> None:
-    # UTF-8 console fix (stejně jako compare_to_omap.py — diakritika v reportu).
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")
-    if hasattr(sys.stderr, "reconfigure"):
-        sys.stderr.reconfigure(encoding="utf-8")
+    from cli_utils import force_utf8_console
+    force_utf8_console()
 
     parser = argparse.ArgumentParser(
         description="Diagnostický probe distribuce tlouštěk skeleton fragmentů "

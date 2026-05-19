@@ -435,15 +435,10 @@ def format_report(
 # --- CLI ---
 
 def main() -> None:
-    # Windows konzole default = cp1250 → české znaky se rozsekají na �.
-    # Přepnutí stdout i stderr na UTF-8 řeší tisk diakritiky bez nutnosti měnit
-    # terminál. stderr je důležitý kvůli SystemExit zprávám z validace --symbols.
-    # reconfigure() je dostupné na TextIOWrapper od Python 3.7.
-    import sys
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")
-    if hasattr(sys.stderr, "reconfigure"):
-        sys.stderr.reconfigure(encoding="utf-8")
+    # UTF-8 pro Windows konzoli (jinak diakritika v reportu rozsekaná).
+    # stderr důležitý kvůli SystemExit zprávám z validace --symbols.
+    from cli_utils import force_utf8_console
+    force_utf8_console()
 
     parser = argparse.ArgumentParser(
         description="Porovnání pipeline Stage 3 výstupu s OMAP ground truth.",

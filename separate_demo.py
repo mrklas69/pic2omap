@@ -19,9 +19,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-# UTF-8 stdout pro českou diakritiku ve Windows konzoli (viz dump_symbols.py).
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
+# UTF-8 stdout pro českou diakritiku ve Windows konzoli.
+from cli_utils import force_utf8_console
+force_utf8_console()
 
 from color_category import (
     build_category_map_with_overrides,

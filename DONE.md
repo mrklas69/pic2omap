@@ -2,6 +2,32 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## Architektura pic2db / db2omap (sezení 6)
+
+- [x] **DB schema** (`docs/db_schema.md`) — kanonická specifikace: MapObject + NonMapElement + DBSnapshot. Disk layout `iter_N.json` + 16-bit `claim_mask_iter_N.png`. CLI verby subcommand router. Persistent IDs napříč iter (IoU bbox matching). Stop kritéria fáze B. [2026-05-19 sezení 6]
+- [x] **Data model** (`db_model.py`) — dataclasses + JSON save/load + round-trip smoke test. Rozšířen o `map_orientation_deg: float | None = 0.0`. [2026-05-19 sezení 6]
+- [x] **CLI router** (`pic2db.py`) — argparse subcommands: `detect` (orchestrace + claim mask + 16-bit PNG), `list` (tabulkový výpis, `--symbols` filter), `mark` (overlay + `--with-ids` popisky), `diff`/`export` stuby. [2026-05-19 sezení 6]
+
+## Stage 4 — Detektory (sezení 6)
+
+- [x] **`brown_line_v1`** — thickness peak → 101 Contour (thin) / 102 Index contour (thick). Reuse `peak_visualizer.classify_segments`. Forest sample: 138 objektů (112×101 + 26×102), over-segmentace 2.09×. Mid peak (43 segmentů) záměrně unclaimed. [2026-05-19 sezení 6]
+- [x] **`area_v1`** — generic area detector parametrizovaný `ColorCategory`. Per-category `MIN_AREA_PX` (GREEN=30, YELLOW=20), per-category stripe filter (GREEN only). Forest sample: 59 × 406 (post-stripe filter) + 26 × 403 (exact GT match). [2026-05-19 sezení 6]
+- [x] **`orientation_v1`** — per-color binary mask (BLUE + BLACK kandidáti) + HoughLinesP + length-weighted histogram angles + dominance check. Slovanka2016: 0.0° (dominance 2010×, raster north-up navzdory deklinaci 3.75° v `.pgw`). Forest sample: None (fallback). [2026-05-19 sezení 6]
+- [~] **`erosion_gully_v1`** — experiment failed (0/17 precision na forest sample, real GT = 2 × 109). Helpery `crossing_signal` + `pointed_cap_count` zůstávají jako reference. Odpojen z `cmd_detect`. Memory `erosion-gully-vs-index-contour` drží lessons learned. [2026-05-19 sezení 6]
+
+## Helper scripts (sezení 6 — Stage 4 exploration)
+
+- [x] **`peak_visualizer.py`** — rozdělí brown skeleton na thin/mid/thick podle peak, overlay s ID popisky (`font_scale=0.2`). Reuse v brown_line_v1. [2026-05-19 sezení 6]
+- [x] **`border_overlay.py`, `border_probe.py`, `thickness_probe.py`** — exploratorní skripty pro segment klasifikaci podle border ratio + thickness peaks. Informovaly návrh brown_line_v1. [2026-05-19 sezení 6]
+
+## GT comparison rozšíření (sezení 6)
+
+- [x] **`compare_to_omap.py --symbols` filter** — totální skip objektů mimo seznam (diagnostika odráží jen filtrovaný podset). Pipe sekce skryta s aktivním filtrem (GT je per-symbol, pipeline per-category). Příprava pro per-symbol detektor validaci. [2026-05-19 sezení 6]
+
+## Test resources (sezení 6)
+
+- [x] **`Slovanka2016.omap + .png + .pgw`** — větší orienťácká mapa s 34 × 601.1 modrými magnetic north lines pro orientation_v1 validaci. 14094×10158 raster, scale 1:15000, declination 3.75° v georef. [2026-05-19 sezení 6]
+
 ## Ground truth — fix podhodnocené GT (sezení 5)
 
 - [x] **Secondary color resolution** — rozšíření `omap_model` (Line/Area/PointSymbol dostaly `secondary_color_ref: int`) + `omap_parser` (helpery `_secondary_color_for_{line,area,point}` + `_color_ref_from_wrapped_symbol` s rekurzí pro Vineyard-style nesting). `compare_to_omap.symbol_to_color_ref_with_source` má 2-úrovňový fallback. Posun GT: 156 přeskočených objektů → 0; ratiosy se zpřesnily (BROWN line 2.26× → 1.89×, GREEN area 2.27× → 1.24×). [2026-05-19 sezení 5]

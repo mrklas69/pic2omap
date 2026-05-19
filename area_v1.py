@@ -157,20 +157,14 @@ def detect(
     objects: list[MapObject] = []
     next_id = starting_id
 
-    # Filter histogram (debug) — kolik komponent vyřadil který kritér.
-    rejected_small = 0
-    rejected_elongated = 0
-
     for i in range(1, n_labels):
         # CC_STAT_LEFT, _TOP, _WIDTH, _HEIGHT, _AREA — indexy 0..4
         x, y, comp_w, comp_h, area = stats[i]
 
         if area < min_area_px:
-            rejected_small += 1
             continue
         density = area / (comp_w * comp_h) if comp_w * comp_h > 0 else 0
         if density < min_density:
-            rejected_elongated += 1
             continue
         # Stripe filter — vyhodí pattern fragmenty (úzké svislé) jen pro
         # kategorie, kde mají statisticky problém (GREEN). YELLOW filtruje
@@ -196,10 +190,5 @@ def detect(
         # Claim mask: pixel hodnota = MapObject.id.
         claim_mask[labels == i] = next_id
         next_id += 1
-
-    # Pro reporting vrátíme aj statistiku — caller (cmd_detect) ji vypíše.
-    # KISS: vrátíme jen objects + mask, statistika přes len(objects) a info že
-    # rejected = n_labels - 1 - len(objects). Detailní rejection counts logujeme:
-    # @TODO pokud bude potřeba breakdown, přidat třetí return.
 
     return objects, claim_mask

@@ -21,6 +21,8 @@ CLI:
     python compare_to_omap.py "resources/forest sample.omap"
     python compare_to_omap.py "resources/forest sample.omap" \\
         --stage3-dir "output/forest sample/components"
+    python compare_to_omap.py "resources/forest sample.omap" \\
+        --symbols 101,102,103
 """
 
 import argparse
@@ -156,6 +158,7 @@ def build_ground_truth(
     omap_path: Path,
     library: SymbolLibrary,
     category_map: dict[int, ColorCategory],
+    symbols_filter: set[str] | None = None,
 ) -> GroundTruth:
     """
     Projde <objects> v OMAP XML, naplní GroundTruth.
@@ -163,6 +166,10 @@ def build_ground_truth(
     Postup per objekt:
         1. Přečíst symbol="N" atribut.
         2. -1 nebo neznámé → objects_without_symbol++.
+        2b. Pokud je aktivní symbols_filter, objekt s code mimo filtr se
+            **totálně přeskočí** (nezapočítá se do žádné statistiky ani
+            diagnostiky). Důvod: chceme čistý GT jen pro zvolené symboly,
+            aby Stage 4 detektor mohl mířit na přesný target.
         3. Najít symbol v library, určit ComponentType (Line/Area/Point).
         4. Text/Combined nebo bez barvy → objects_skipped++.
         5. Color ref → ColorCategory přes category_map.
@@ -200,6 +207,14 @@ def build_ground_truth(
 
         # Krok 3: typ symbolu.
         symbol = sid_to_symbol[sid]
+
+        # Krok 2b: pokud je aktivní --symbols filtr, přeskoč objekty mimo seznam.
+        # Filtr aplikujeme **až po** symbol lookup (potřebujeme symbol.code).
+        # Skip je totální — neinkrementuje žádné počítadlo, aby diagnostika
+        # (no_color, secondary_resolved, …) odrážela jen filtrovaný podset.
+        if symbols_filter is not None and symbol.code not in symbols_filter:
+            continue
+
         ctype = symbol_to_component_type(symbol)
         if ctype is None:
             # TextSymbol nebo CombinedSymbol — zatím nedetekujeme.
@@ -308,13 +323,33 @@ def format_report(
     omap_path: Path,
     gt: GroundTruth,
     pipeline_counts: dict[tuple[ColorCategory, ComponentType], int] | None,
+    symbols_filter: set[str] | None = None,
 ) -> str:
     """
     Vyformátuje human-readable porovnání. Pokud pipeline_counts=None,
     vypíše jen GT část.
+
+    Pokud je aktivní symbols_filter, pipeline sekce je **skryta**, i když
+    pipeline_counts byly načteny. Důvod: GT je filtrované per-symbol, ale
+    pipeline produkuje per-category masky (cat_brown_line.png = všechny
+    brown linie, ne jen 101/102/103). Smíchat to v jedné tabulce by dalo
+    matoucí ratio. Plné srovnání má smysl až po Stage 4 (per-symbol pipeline).
     """
+    # Filtr potlačuje pipeline sekci, i když ji uživatel zadal přes --stage3-dir.
+    show_pipeline = pipeline_counts is not None and symbols_filter is None
+
     out: list[str] = []
     out.append(f"=== Compare to OMAP: {omap_path.name} ===")
+    if symbols_filter is not None:
+        # Stabilní pořadí pro reprodukovatelný výpis (set je neuspořádaný).
+        filter_list = ",".join(sorted(symbols_filter))
+        out.append(f"Filter: --symbols {filter_list}")
+        if pipeline_counts is not None:
+            # Uživatel zadal --stage3-dir, ale filtr Pipe sekci skryl — vysvětli proč.
+            out.append(
+                "  (Pipe sekce skryta: GT je per-symbol, pipeline je per-category. "
+                "Smysluplné srovnání bude po Stage 4.)"
+            )
     out.append("")
     out.append(f"Zpracováno objektů: {gt.objects_counted}")
     out.append(
@@ -352,7 +387,7 @@ def format_report(
     all_categories: set[ColorCategory] = set()
     for cat, _ in gt.counts.keys():
         all_categories.add(cat)
-    if pipeline_counts is not None:
+    if show_pipeline:
         for (cat, _), cnt in pipeline_counts.items():
             if cnt > 0:
                 all_categories.add(cat)
@@ -363,14 +398,14 @@ def format_report(
     for cat in categories_sorted:
         out.append(f"--- {cat.value.upper()} ---")
         # Hlavička tabulky POINT/LINE/AREA × GT / Pipe / Δ / Ratio
-        if pipeline_counts is not None:
+        if show_pipeline:
             out.append(f"  {'Type':<6}  {'GT':>5}  {'Pipe':>5}  {'Diff':>5}  {'Ratio':>6}")
         else:
             out.append(f"  {'Type':<6}  {'GT':>5}")
 
         for ctype in ComponentType:
             gt_cnt = gt.counts.get((cat, ctype), 0)
-            if pipeline_counts is not None:
+            if show_pipeline:
                 pipe_cnt = pipeline_counts.get((cat, ctype), 0)
                 delta = pipe_cnt - gt_cnt
                 ratio = _format_ratio(gt_cnt, pipe_cnt)
@@ -401,11 +436,14 @@ def format_report(
 
 def main() -> None:
     # Windows konzole default = cp1250 → české znaky se rozsekají na �.
-    # Přepnutí stdout na UTF-8 řeší tisk diakritiky bez nutnosti měnit terminál.
+    # Přepnutí stdout i stderr na UTF-8 řeší tisk diakritiky bez nutnosti měnit
+    # terminál. stderr je důležitý kvůli SystemExit zprávám z validace --symbols.
     # reconfigure() je dostupné na TextIOWrapper od Python 3.7.
     import sys
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
 
     parser = argparse.ArgumentParser(
         description="Porovnání pipeline Stage 3 výstupu s OMAP ground truth.",
@@ -422,6 +460,14 @@ def main() -> None:
         help="Adresář s cat_<color>_<type>.png maskami "
              "(typicky output/<sample>/components/). Bez něj se vypíše jen GT.",
     )
+    parser.add_argument(
+        "--symbols",
+        type=str,
+        default=None,
+        help="Comma-separated ISOM kódy pro filtrování GT na podset symbolů "
+             "(např. '101,102,103' pro vrstevnice). Exact match. Při aktivním "
+             "filtru se pipeline sekce skryje (GT je per-symbol, pipeline per-category).",
+    )
     args = parser.parse_args()
 
     if not args.omap_file.exists():
@@ -432,8 +478,28 @@ def main() -> None:
     profiles = build_color_profiles(library)
     category_map = build_category_map_with_overrides(profiles)
 
+    # Parse + validuj --symbols. Comma-separated string → set[str].
+    # Validace: každý kód musí existovat v library, jinak error (lepší než
+    # tichý prázdný GT z překlepu).
+    symbols_filter: set[str] | None = None
+    if args.symbols is not None:
+        # strip per item kvůli toleranci k mezerám okolo čárek ('101, 102, 103')
+        requested = {s.strip() for s in args.symbols.split(",") if s.strip()}
+        if not requested:
+            raise SystemExit("--symbols: prázdný seznam (zadej alespoň jeden kód, např. 101)")
+        available = {s.code for s in library.symbols}
+        unknown = requested - available
+        if unknown:
+            # Zobraz alespoň pár dostupných kódů, aby uživatel viděl formát.
+            sample = sorted(available)[:10]
+            raise SystemExit(
+                f"--symbols: neznámé kódy v library: {sorted(unknown)}. "
+                f"Dostupné kódy (ukázka): {sample}, …"
+            )
+        symbols_filter = requested
+
     # Build GT.
-    gt = build_ground_truth(args.omap_file, library, category_map)
+    gt = build_ground_truth(args.omap_file, library, category_map, symbols_filter)
 
     # Volitelně pipeline counts.
     pipeline_counts: dict[tuple[ColorCategory, ComponentType], int] | None = None
@@ -443,7 +509,7 @@ def main() -> None:
         else:
             pipeline_counts = load_pipeline_counts(args.stage3_dir)
 
-    print(format_report(args.omap_file, gt, pipeline_counts))
+    print(format_report(args.omap_file, gt, pipeline_counts, symbols_filter))
 
 
 if __name__ == "__main__":

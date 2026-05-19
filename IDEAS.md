@@ -11,7 +11,50 @@ Externí zdroje a existující řešení → viz `RESEARCH.md`.
 - **Výstup**: `.omap` soubor s vektorovými objekty napojenými na ISOM / ISSprOM symbol set.
 - **Použití**: buď přímo, nebo jako template pro doladění v OOM.
 
-## Pipeline (8 stages)
+## Architektura pic2db / db2omap (Sezení 5 — aktuální koncept)
+
+> **Datový model a CLI verby**: kanonický zdroj je `docs/db_schema.md`. Tato sekce drží high-level přehled.
+
+Refrejming původního 8-stage pohledu. Hlavní změna: **DB jako mezivrstva**.
+
+```
+PNG → pic2db → db.json → db2omap → OMAP
+```
+
+- **pic2db**: rozpoznávání symbolů do strukturované DB. Iterativní.
+- **db.json**: zdroj pravdy o detekovaném obsahu. Editovatelný, diff-able.
+- **db2omap**: serializace DB → OMAP XML. Není detekce, jen mapování.
+
+### Fáze A — strip overlays (one-pass per layer)
+
+Cíl: očistit rastr od non-map elementů. Výstup: clean raster + DB záznamy typu `non_map_element` (db2omap může chtít zachovat trať jako template).
+
+1. **Texty a písmena** — OCR (Tesseract?) nebo blob-based detekce kompaktních non-category shapes.
+2. **Loga, jiná grafika** — sponzoři, popisky kontrol. Detekce: barvy mimo ISOM paletu / velké souvislé bloky.
+3. **PurplePen (trať)** — fialová vrstva, **auto-detect**: pokud rastr obsahuje fialové pixely → strip; bez fialové se krok přeskočí.
+
+Stop: každá vrstva one-pass, žádná iterace.
+
+### Fáze B — content recognition (iterativní, anotativní claiming)
+
+Každý pixel získá claim `{symbol_id, confidence}`. Další pass pracuje pouze s unclaimed pixely. Pořadí **lowest-confusion first**:
+
+4. **Plochy (areas)** — velké souvislé regiony, nejmíň ambiguous.
+5. **Linie (lines)** — skeleton-based, vnitřní ambiguity (vrstevnice vs cesta vs plot).
+6. **Body (points)** — nejmenší, nejvíc šum-podobné. Záměrně až po liniích.
+7. **Re-linie (reconnect)** — kritický krok: 418/536 přerušuje vrstevnici. Po claim odstranění bodů zkus napojit přerušené linie.
+
+Stop iterace fáze B (kterékoli první):
+- **Konvergence**: nových claimů < 1 % objektů mezi iter N a N+1.
+- **Cap**: max 3 iterace (víc = signál na bug v claim logice).
+
+### Klíčové designové volby
+
+- **Anotativní claiming**, ne destruktivní. Iterace = update claimů, ne vymazání pixelů. Reverzibilní, debug-friendly.
+- **DB formát = JSON** (`output/<sample>/db/iter_N.json`). Dataclasses + `to_dict`/`from_dict`. Diff mezi iteracemi je grep-friendly. Při škálování na velké mapy lze přejít na Parquet/SQLite — pro forest sample (~540 objektů) JSON stačí.
+- **PurplePen presence = auto-detect** (existence fialových pixelů). Fáze A není povinná pro každý vstup.
+
+## Pipeline (8 stages) — starší pohled, viz Architektura pic2db/db2omap výše
 
 `PNG → [1] preprocess → [2] color separation → [3] per-color raster ops → [4] symbol recognition → [5] vektorizace → [6] topology fix → [7] georef → [8] OMAP serializace`
 

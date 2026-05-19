@@ -1,17 +1,17 @@
 # ISSprOM 2019-2 - verifikace OMAP databáze
 
-**Zdroj OMAP**: `resources/complete map.omap` (182 symbolů, mapítko 1:4000, 39 barev)
+**Zdroj OMAP**: `resources/complete map.omap` (182 symbolů, měřítko 1:4000, 39 barev)
 **Zdroj spec**: [IOF ISSprOM 2019-2, Revision 6, January 2024](https://www.orienteeringaustria.at/wp-content/uploads/2025/01/IOF-ISSprOM-2019-2-Revision-6-January-2024.pdf) (lokální kopie: `docs/ISSprOM_2019-2_rev6.pdf`)
 **Datum**: 2026-05-19
 
 ## Hlavní zjištění (TL;DR)
 
-**OMAP soubor `complete map.omap` nepouzívá ISSprOM 2019-2 kódy, ale ISOM 2017-2 kódy.**
+**OMAP soubor `complete map.omap` nepoužívá ISSprOM 2019-2 kódy, ale ISOM 2017-2 kódy.**
 
-Pokud je tato OMAP databáze základem pro `pic2omap`, vstup do sprintové mapy ji nelze pouzít beze změn -- výsledný `.omap` by sice fungoval v OOM, ale **kódy symbolů by neodpovídaly oficiální specifikaci** a takovou mapu by IOF/CoVe nemohl akceptovat jako ISSprOM-compliant.
+Pokud je tato OMAP databáze základem pro `pic2omap`, vstup do sprintové mapy ji nelze použít beze změn -- výsledný `.omap` by sice fungoval v OOM, ale **kódy symbolů by neodpovídaly oficiální specifikaci** a takovou mapu by IOF/CoVe nemohl akceptovat jako ISSprOM-compliant.
 
 Konkrétní rozdíly:
-- ISSprOM má `501` Paved area (broun/blackbroun screen), ISOM má `501` Asphalt - úplně jiné krytí.
+- ISSprOM má `501` Paved area (brown/blackbrown screen), ISOM má `501` Asphalt - úplně jiné krytí.
 - ISSprOM přečíslovala silnice/cesty na `505`-`509.2`, ISOM má `506`-`509`, `515`-`519` se zcela jinou granularitou.
 - ISSprOM nemá `304` (lake), `420` (cultivation), `526` (cairn jako 526), nemá `534`-`540` (passable/uncrossable wall, fence, crossing point) -- má vlastní `513.1`/`513.2`/`515`/`516`/`518`/`519`.
 - ISSprOM `516`, `518` = passable / uncrossable fence; v ISOM jsou tyto kódy úplně jiné objekty (small footpath, narrow ride).
@@ -26,7 +26,7 @@ Konkrétní rozdíly:
 | Chybí v OMAP (ISSprOM kódy bez ekvivalentu) | **~72** |
 | Extra v OMAP (nad rámec spec / ISOM kódy) | **~150** |
 
-**Pozn.**: Mnoho ISOM kódů v OMAP _funkčně_ odpovídá nějakému ISSprOM symbolu, jen pod jiným kódem. Tabulky níze rozlišují:
+**Pozn.**: Mnoho ISOM kódů v OMAP _funkčně_ odpovídá nějakému ISSprOM symbolu, jen pod jiným kódem. Tabulky níže rozlišují:
 1. **Kódy v ISSprOM bez protějšku v OMAP** (sekce "Chybí")
 2. **Kódy v OMAP bez protějšku v ISSprOM** (sekce "Extra" -- většinou ISOM-only)
 
@@ -130,7 +130,7 @@ Konkrétní rozdíly:
 
 Tabulka uvádí jen kódy v OMAP, které **nejsou** v ISSprOM 2019-2 vůbec definované (ani jako základ ani jako .x varianta). Většina pochází z ISOM 2017-2.
 
-| Kód v OMAP | Pravdĕpodobný význam (ISOM) | Možný důvod |
+| Kód v OMAP | Pravděpodobný význam (ISOM) | Možný důvod |
 |---|---|---|
 | 106.0 / 106.1 / 106.2 | Earth bank, varianty | ISOM Earth bank -- v ISSprOM je `104` |
 | 108.1 | Small earth wall | ISOM kód; ISSprOM má `105.1` |
@@ -192,30 +192,30 @@ Tabulka uvádí jen kódy v OMAP, které **nejsou** v ISSprOM 2019-2 vůbec defi
 ## Poznámky
 
 ### 1. Symbolová sada v OMAP je ISOM 2017-2, ne ISSprOM 2019-2
-Despite the map being a sprint scale (1:4000), the `complete map.omap` file uses the **ISOM 2017-2 symbol numbering**. The colors include "OpenOrienteering Blue 50%", "Brown 20-50% for paved area, non-urban", "Yellow 70%" -- some of which suggest a hybrid / non-standard OOM template.
+I když má mapa sprintové měřítko (1:4000), soubor `complete map.omap` používá **číslování symbolů z ISOM 2017-2**. Mezi barvami jsou „OpenOrienteering Blue 50%", „Brown 20-50% for paved area, non-urban", „Yellow 70%" -- některé z nich naznačují hybridní / nestandardní OOM template.
 
-This is critical for `pic2omap`:
-- If the goal is to produce ISSprOM-compliant sprint maps, this OMAP template is **not directly usable**.
-- A separate ISSprOM 2019-2 template must be obtained (typically from OOM symbol sets distribution: `ISSprOM_2019-2.omap`) and used as the source of truth for symbol codes when output is a sprint map.
+Pro `pic2omap` je to zásadní:
+- Pokud je cílem produkovat ISSprOM-compliant sprintové mapy, tato OMAP template **není přímo použitelná**.
+- Je nutné získat samostatnou ISSprOM 2019-2 template (typicky z OOM symbol sets distribuce: `ISSprOM_2019-2.omap`) a použít ji jako zdroj pravdy pro kódy symbolů, pokud je výstupem sprintová mapa.
 
 ### 2. `.x.y` notace u kódů v OMAP
-- `.0.1` typically denotes **"minimum size"** variant (used for legend / shortest representation).
-- `.1` / `.2` etc. denote **size variants** (e.g. "very high", "minimum length").
-- `.1.1` denotes **OOM-internal sub-variants** for the user (e.g. "no tags").
+- `.0.1` typicky označuje variantu **„minimum size"** (používá se pro legendu / nejkratší reprezentaci).
+- `.1` / `.2` atd. označují **size varianty** (např. „very high", „minimum length").
+- `.1.1` označuje **OOM-interní sub-varianty** pro uživatele (např. „no tags").
 
-These do NOT exist in the IOF specification -- they are OOM symbol set internals for convenience.
+V IOF specifikaci tyto subkódy **neexistují** -- jsou to OOM symbol set internals pro pohodlí uživatele.
 
 ### 3. ISSprOM-only symboly důležité pro sprint mapy
-Following ISSprOM symbols that **must** be present in any sprint-compatible symbol set but are **missing** from the current OMAP DB:
-- `501.1`, `501.2` - Step / edge of paved area (sprint-specific!)
-- `513.1` / `513.2` - Passable wall variants
+Následující ISSprOM symboly **musí** být přítomné v jakémkoli sprint-compatible symbol setu, ale v aktuální OMAP DB **chybí**:
+- `501.1`, `501.2` - Step / edge of paved area (sprint-specifický!)
+- `513.1` / `513.2` - Passable wall varianty
 - `522.1` - Pillar
 - `527` - Fodder rack
 - `530` / `531` - Prominent man-made (ring / x)
 - `715` - Continuing point after map exchange
 
 ### 4. Konflikty kódů (stejné číslo, jiný význam ISOM vs ISSprOM)
-This is the biggest hazard for `pic2omap`. Following codes mean **completely different things** in the two specs:
+Tohle je největší hazard pro `pic2omap`. Následující kódy znamenají v obou specifikacích **úplně jiné věci**:
 
 | Kód | ISOM 2017-2 význam | ISSprOM 2019-2 význam |
 |---|---|---|
@@ -236,11 +236,11 @@ This is the biggest hazard for `pic2omap`. Following codes mean **completely dif
 | 526 | Special man-made point | Cairn |
 | 533 | Permanent stand | Area with obstacles |
 
-**Doporučení**: V `pic2omap` nikdy nepředpokládat, ze "kód X" znamená to samé bez ohledu na spec. Před načtením OMAPu vždy zjistit, podle jaké specifikace byl vytvořen, ideálně z metadat (název souboru, mapítko, scale 1:4000 vs 1:15000), nebo si nechat uživatelem upřesnit.
+**Doporučení**: V `pic2omap` nikdy nepředpokládat, že „kód X" znamená to samé bez ohledu na spec. Před načtením OMAPu vždy zjistit, podle jaké specifikace byl vytvořen, ideálně z metadat (název souboru, měřítko, scale 1:4000 vs 1:15000), nebo si nechat uživatelem upřesnit.
 
 ### 5. Co s tím dál
 Pro `pic2omap` jsou v zásadě dvě cesty:
 1. **Stáhnout oficiální ISSprOM 2019-2 OMAP template** (od OOM Symbol Sets) a postavit symbolovou DB nad ním. Pak budou kódy odpovídat IOF spec.
-2. **Pracovat na úrovni vyšší abstrakce** (např. názvy/typ symbolu místo číselného kódu) a maperovat na konkrétní spec až při exportu. Tím by `pic2omap` zůstal nezávislý na verzi spec.
+2. **Pracovat na úrovni vyšší abstrakce** (např. názvy/typ symbolu místo číselného kódu) a mapovat na konkrétní spec až při exportu. Tím by `pic2omap` zůstal nezávislý na verzi spec.
 
 Druhá cesta je robustnější, ale vyžaduje vlastní interní katalog symbolů s napojením na obě spec (ISOM a ISSprOM) -- to je velký kus práce.

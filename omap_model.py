@@ -135,6 +135,10 @@ class LineSymbol(SymbolBase):
     has_mid_symbol: bool = False
     has_start_symbol: bool = False
     has_end_symbol: bool = False
+    # Fallback barva ze start/mid/end sub-symbolů (viz secondary_color_ref
+    # poznámka u SymbolBase). Příklad: 110 Small erosion gully má color_ref=-1
+    # a barvu jen v mid_symbol → point_symbol → inner_color="7" (Brown).
+    secondary_color_ref: int = NO_COLOR
 
 
 @dataclass(kw_only=True)
@@ -152,6 +156,10 @@ class PointSymbol(SymbolBase):
     outer_width: int = 0
     outer_color_ref: int = NO_COLOR
     elements_count: int = 0           # počet <element> uzlů uvnitř
+    # Fallback barva z <element> sub-symbolů (line/area/point uvnitř bodového
+    # symbolu). Příklad: 115 Small depression má inner_color=-1 a barvu jen
+    # v element → line_symbol color="7" (Brown).
+    secondary_color_ref: int = NO_COLOR
 
 
 @dataclass(kw_only=True)
@@ -166,6 +174,11 @@ class AreaSymbol(SymbolBase):
     inner_color_ref: int = NO_COLOR
     min_area: int = 0
     patterns_count: int = 0           # počet <pattern> uzlů (vzorová výplň)
+    # Fallback barva z <pattern> sub-elementů. Příklad: 407 Undergrowth má
+    # inner_color=-1 a barvu jen v <pattern color="17"> (Green šrafa).
+    # Pro pattern type=2 (point pattern) se barva čte z vnořeného
+    # <point_symbol>/<line_symbol> uvnitř patternu.
+    secondary_color_ref: int = NO_COLOR
 
 
 @dataclass(kw_only=True)

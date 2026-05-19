@@ -19,13 +19,16 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 
 ## Ground truth — doladění (compare_to_omap.py)
 
-- [ ] **No-color symbol resolution** — symboly s `inner_color="-1"` a `patterns_count > 0` (Undergrowth 407/409, Distinct vegetation boundary 416, Small erosion gully 110, Small depression 115, …) se přeskakují. V `forest sample.omap` je takových 156 objektů — náš GT je podhodnocený. Rozšířit `symbol_to_color_ref` o čtení barvy z prvního `<pattern>` child elementu, nebo extended parser, který zaznamená pattern barvy do AreaSymbol/LineSymbol.
-- [ ] **Brown line filtering (jen vrstevnice)** — momentálně GT BROWN line=80 obsahuje i 4 Minor road, 4 Earth bank, 2 Erosion gully, 1 Earth wall. Pro Stage 4 vrstevnicový detektor potřebujeme přesnou metriku jen pro 101/102/103 (= 69 objektů). Přidat `--symbols 101,102,103` CLI flag.
+- [ ] **Brown line filtering (jen vrstevnice)** — momentálně GT BROWN line=96 obsahuje i 4 Minor road, 4 Earth bank, 2+16 Erosion gully, 1 Earth wall. Pro Stage 4 vrstevnicový detektor potřebujeme přesnou metriku jen pro 101/102/103 (= 69 objektů). Přidat `--symbols 101,102,103` CLI flag.
 - [ ] **IoU / geometrická metrika** — counts jsou hrubá metrika (oversegmentace skrytá ve fragmentaci). Po Stage 5 (vektorizace) přidat porovnání délek linií v mm a ploch v mm², přepočet OMAP units → pixel via georef.
 
 ## Symbol layer 2 (pro Stage 4)
 
 - [ ] **SymbolProfile** — `symbol_profile.py`: per-symbol key features (line width v px po georef, dashed Y/N, dash period, point shape signature, area pattern fingerprint). Builder ze SymbolLibrary.
+
+## Dokumentace (pro %AUDIT:DOCS)
+
+- [ ] **Single source of truth pro pipeline status** — tabulka 8 stages se ☐/✓ existuje na 5+ místech (README, IDEAS, DIARY sezení 2/3/4). Drift hrozí při každé změně stavu. Návrh: README = kanonický, ostatní jen odkazují. Diary sezení drží pouze *delta* sezení, ne celkový stav. Vyřešit při příštím %AUDIT:DOCS.
 
 ## Infrastruktura
 

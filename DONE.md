@@ -2,9 +2,20 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## Ground truth — fix podhodnocené GT (sezení 5)
+
+- [x] **Secondary color resolution** — rozšíření `omap_model` (Line/Area/PointSymbol dostaly `secondary_color_ref: int`) + `omap_parser` (helpery `_secondary_color_for_{line,area,point}` + `_color_ref_from_wrapped_symbol` s rekurzí pro Vineyard-style nesting). `compare_to_omap.symbol_to_color_ref_with_source` má 2-úrovňový fallback. Posun GT: 156 přeskočených objektů → 0; ratiosy se zpřesnily (BROWN line 2.26× → 1.89×, GREEN area 2.27× → 1.24×). [2026-05-19 sezení 5]
+- [x] **Phantom objects XPath fix** — `.//object` chytalo i 134 template `<object>` uvnitř `<symbols>` definic (souřadnice patternů/elementů). Změna na `.//objects/object` (přímé děti `<objects>` kontejneru). `objects_without_symbol: 134 → 0`. [2026-05-19 sezení 5]
+- [x] **UTF-8 console fix** — `sys.stdout.reconfigure(encoding="utf-8")` na startu `compare_to_omap.main`. Diakritika v reportu na Windows cp1250 konzoli teď funguje. [2026-05-19 sezení 5]
+
+## Dokumentace (sezení 5)
+
+- [x] **README update** — nové ratiosy (BROWN 1.89×, BLACK 0.63×, GREEN 1.24×, YELLOW 0.83×) + popis secondary-color fallbacku. [2026-05-19 sezení 5]
+- [x] **`docs/spec_check_ISSprOM-2019-2.md`** — oprava rozbité diakritiky (`mapítko`, `nepouzívá`, `pouzít`, `Pravdĕpodobný`, `níze`, `broun`) + překlad 4 anglických bloků do češtiny (sekce 1-4 v "Poznámkách"). Důvod: konzistence napříč docs. Druhý spec_check (ISOM-2017-2) byl v pohodě. [2026-05-19 sezení 5]
+
 ## Ground truth comparison
 
-- [x] **`compare_to_omap.py`** — standalone CLI skript: načte OMAP, mapuje `<objects>` na (ColorCategory, ComponentType) via existující symbol library + category map. Pipeline strana: počítá connected components v `cat_<color>_<type>.png`. Výstup: tabulka GT/Pipe/Diff/Ratio per kategorie + ISOM symbol breakdown + diagnostika skipped objektů. První **metrika úspěchu Fáze 0**. Klíčový vedlejší nález: 156 objektů ve forest sample má `inner_color="-1"` (barva přes patterns), GT je tedy podhodnocený — zapsáno jako TODO. [2026-05-19 sezení 4]
+- [x] **`compare_to_omap.py`** — standalone CLI skript: načte OMAP, mapuje `<objects>` na (ColorCategory, ComponentType) via existující symbol library + category map. Pipeline strana: počítá connected components v `cat_<color>_<type>.png`. Výstup: tabulka GT/Pipe/Diff/Ratio per kategorie + ISOM symbol breakdown + diagnostika skipped objektů. První **metrika úspěchu Fáze 0**. Klíčový vedlejší nález: 156 objektů ve forest sample má `inner_color="-1"` (barva přes patterns) — vyřešeno v sezení 5. [2026-05-19 sezení 4]
 
 ## Stage 3 — Per-category raster ops
 

@@ -74,29 +74,47 @@ def symbol_to_component_type(symbol: SymbolBase) -> ComponentType | None:
     return None
 
 
+def symbol_to_color_ref_with_source(symbol: SymbolBase) -> tuple[int, bool]:
+    """
+    Vrátí (color_ref, used_secondary). 2-úrovňový fallback:
+        1. Primary — color_ref / inner_color_ref / outer_color_ref na samotném
+           symbolu.
+        2. Secondary — secondary_color_ref z parseru (mid_symbol / pattern /
+           element). Naplněno parserem pro symboly, které mají primární barvu
+           NO_COLOR a skutečnou barvu schovanou v sub-struktuře.
+           Příklady (forest sample):
+               110 Erosion gully  → primary=-1, secondary=Brown (7)
+               115 Depression     → primary=-1, secondary=Brown (7)
+               407 Undergrowth    → primary=-1, secondary=Green-pattern (17)
+               416 Veg. boundary  → primary=-1, secondary=Black (1)
+
+    used_secondary = True pokud se vybrala secondary (= diagnostika).
+    """
+    if isinstance(symbol, LineSymbol):
+        if symbol.color_ref != NO_COLOR:
+            return symbol.color_ref, False
+        return symbol.secondary_color_ref, True
+    if isinstance(symbol, AreaSymbol):
+        if symbol.inner_color_ref != NO_COLOR:
+            return symbol.inner_color_ref, False
+        return symbol.secondary_color_ref, True
+    if isinstance(symbol, PointSymbol):
+        if symbol.inner_color_ref != NO_COLOR:
+            return symbol.inner_color_ref, False
+        if symbol.outer_color_ref != NO_COLOR:
+            return symbol.outer_color_ref, False
+        return symbol.secondary_color_ref, True
+    return NO_COLOR, False
+
+
 def symbol_to_color_ref(symbol: SymbolBase) -> int:
     """
     Vrátí color reference (priority index) symbolu jako 'hlavní' barvu.
-
-    LineSymbol → color_ref
-    AreaSymbol → inner_color_ref (výplň)
-    PointSymbol → inner_color_ref pokud existuje, jinak outer_color_ref
-        (jednoduché bodové symboly mívají jen inner, složitější obrysové
-         struktury mají i outer)
-    Jinde NO_COLOR.
-
-    Vrátí NO_COLOR (-1) pokud symbol nemá použitelnou barvu — volající
-    pak typicky objekt z porovnání vynechá.
+    Tenký wrapper nad symbol_to_color_ref_with_source — zahazuje informaci,
+    odkud se barva vzala (pro volající, kteří diagnostiku nepotřebují).
     """
-    if isinstance(symbol, LineSymbol):
-        return symbol.color_ref
-    if isinstance(symbol, AreaSymbol):
-        return symbol.inner_color_ref
-    if isinstance(symbol, PointSymbol):
-        if symbol.inner_color_ref != NO_COLOR:
-            return symbol.inner_color_ref
-        return symbol.outer_color_ref
-    return NO_COLOR
+    color, _ = symbol_to_color_ref_with_source(symbol)
+    return color
 
 
 # --- Ground truth z OMAP ---
@@ -122,9 +140,14 @@ class GroundTruth:
     # Skipped — rozdělené per důvod (přehlednější diagnostika):
     objects_skipped_text: int = 0       # TextSymbol — OCR nedetekujeme
     objects_skipped_combined: int = 0   # CombinedSymbol — composite recognition nedetekujeme
-    objects_skipped_no_color: int = 0   # Line/Area/Point bez použitelné barvy
+    objects_skipped_no_color: int = 0   # Line/Area/Point bez použitelné barvy (ani primary, ani secondary)
     # Detail no-color: list (code, name) pro symboly, kde k tomu došlo
     no_color_symbols: list[tuple[str, str]] = field(default_factory=list)
+    # Diagnostika secondary fallbacku: objekty, jejichž barva se vzala ze
+    # secondary_color_ref (pattern / mid_symbol / element). Pomáhá ověřit,
+    # že parser secondary resolver pokrývá očekávané symboly.
+    objects_via_secondary: int = 0
+    secondary_resolved_symbols: list[tuple[str, str]] = field(default_factory=list)
     # Celkem zpracováno objektů (validní GT objekty)
     objects_counted: int = 0
 
@@ -161,11 +184,16 @@ def build_ground_truth(
         dict[int, int],
     ] = defaultdict(lambda: defaultdict(int))
 
-    # XPath ".//object" = všechny <object> kdekoliv pod root (bez ohledu na hloubku).
-    for obj in root.findall(".//" + _tag("object")):
+    # POZOR: hledáme jen <object> v <objects> sekci (skutečné mapové objekty).
+    # ".//object" by chytlo i 134 phantom <object> uvnitř <symbols> definic —
+    # to jsou template geometrie patternů/elementů (např. souřadnice kruhu pro
+    # 115 Depression, čar pro 418 Special vegetation feature), ne mapové objekty.
+    # XPath ".//objects/object" = <object> jako přímé děti <objects> kontejneru.
+    for obj in root.findall(f".//{_tag('objects')}/{_tag('object')}"):
         sid = int(obj.get("symbol", -1))
 
         # Krok 1+2: symbol=-1 nebo neznámý ID → skip s počítadlem.
+        # Po fixu cesty by mělo být 0 (každý objekt v <objects> má symbol atribut).
         if sid < 0 or sid not in sid_to_symbol:
             gt.objects_without_symbol += 1
             continue
@@ -187,15 +215,20 @@ def build_ground_truth(
                 gt.objects_skipped_no_color += 1
             continue
 
-        # Krok 4+5: barva → kategorie.
-        color_ref = symbol_to_color_ref(symbol)
+        # Krok 4+5: barva → kategorie (s diagnostikou, odkud).
+        color_ref, used_secondary = symbol_to_color_ref_with_source(symbol)
         if color_ref == NO_COLOR or color_ref not in category_map:
-            # Symbol bez hlavní barvy (typicky AreaSymbol s patterns_count > 0,
-            # kde inner_color=-1 a barva je dána pattern children).
+            # Symbol bez použitelné barvy ani v primary, ani v secondary.
+            # Po fixu (2026-05-19 sezení 5) by mělo být blízko 0 — pokud tu
+            # něco zbylo, je to kandidát na další rozšíření secondary resolveru.
             gt.objects_skipped_no_color += 1
             gt.no_color_symbols.append((symbol.code, symbol.name))
             continue
         category = category_map[color_ref]
+        if used_secondary:
+            # Objekt zachycen díky fallbacku — započítej do diagnostiky.
+            gt.objects_via_secondary += 1
+            gt.secondary_resolved_symbols.append((symbol.code, symbol.name))
 
         # Krok 6: inkrementuj.
         key = (category, ctype)
@@ -285,22 +318,34 @@ def format_report(
     out.append("")
     out.append(f"Zpracováno objektů: {gt.objects_counted}")
     out.append(
+        f"  z toho via secondary fallback: {gt.objects_via_secondary}"
+    )
+    out.append(
         f"Skip — bez symbolu (-1): {gt.objects_without_symbol}, "
         f"text: {gt.objects_skipped_text}, "
         f"combined: {gt.objects_skipped_combined}, "
         f"no-color: {gt.objects_skipped_no_color}"
     )
-    # Pokud máme nějaké no-color, vypíšeme unikátní (code, name) páry s počtem.
-    # Hodí se k debugu — jestli to jsou legitimní pattern areas, nebo bug v mappingu.
-    if gt.no_color_symbols:
-        from collections import Counter
-        # Counter na list tuplů → {(code, name): count}
-        nc_counts = Counter(gt.no_color_symbols)
-        out.append("No-color symbols (objekty bez použitelné barvy):")
-        # Sort podle počtu desc, pak podle kódu
-        for (code, name), cnt in sorted(nc_counts.items(), key=lambda kv: (-kv[1], kv[0][0])):
+    # Lokální helper: vypíše unikátní (code, name) páry s počtem, sort desc → code asc.
+    # Použité pro 2 sekce níže — DRY.
+    from collections import Counter
+
+    def _format_symbol_counter(pairs: list[tuple[str, str]]) -> list[str]:
+        c = Counter(pairs)
+        lines: list[str] = []
+        for (code, name), cnt in sorted(c.items(), key=lambda kv: (-kv[1], kv[0][0])):
             name_short = name if len(name) <= 36 else name[:33] + "..."
-            out.append(f"  {cnt:>3}× {code:<8} {name_short}")
+            lines.append(f"  {cnt:>3}× {code:<8} {name_short}")
+        return lines
+
+    # Resolved via secondary — co se nám díky fallbacku podařilo zachytit.
+    if gt.secondary_resolved_symbols:
+        out.append("Resolved via secondary (pattern / mid_symbol / element):")
+        out.extend(_format_symbol_counter(gt.secondary_resolved_symbols))
+    # No-color — co i přes secondary fallback zbylo. Po fixu očekáváme prázdný seznam.
+    if gt.no_color_symbols:
+        out.append("No-color symbols (ani primary, ani secondary fallback nepomohl):")
+        out.extend(_format_symbol_counter(gt.no_color_symbols))
     out.append("")
 
     # Které kategorie se v reportu objevily — sjednocení GT i pipeline (pokud existuje).
@@ -355,6 +400,13 @@ def format_report(
 # --- CLI ---
 
 def main() -> None:
+    # Windows konzole default = cp1250 → české znaky se rozsekají na �.
+    # Přepnutí stdout na UTF-8 řeší tisk diakritiky bez nutnosti měnit terminál.
+    # reconfigure() je dostupné na TextIOWrapper od Python 3.7.
+    import sys
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+
     parser = argparse.ArgumentParser(
         description="Porovnání pipeline Stage 3 výstupu s OMAP ground truth.",
     )

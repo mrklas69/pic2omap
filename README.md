@@ -28,10 +28,17 @@ Current metric on `forest sample.omap` (Stage 3 output vs OMAP ground truth,
 counts of objects per color category and topological type):
 
 ```
-BROWN line ratio: 2.26x  (oversegmented contours — broken by black overlays)
-BLACK line ratio: 0.84x  (paths joined at intersections)
-YELLOW area     : 0.83x  (areas joined across neighbour boundaries)
+BROWN line ratio:  1.89x  (oversegmented contours — broken by black overlays)
+BLACK line ratio:  0.63x  (paths joined at intersections)
+GREEN area ratio:  1.24x  (near 1:1 after secondary-color fallback)
+YELLOW area ratio: 0.83x  (areas joined across neighbour boundaries)
 ```
+
+Secondary-color fallback (sezení 5): GT now also counts objects whose color
+lives in `<pattern>` / `<mid_symbol>` / `<element>` sub-structures (e.g.
+Undergrowth 407/409, Erosion gully 110, Depression 115, Vegetation
+boundary 416). Without the fallback, 156 objects (~29 % of the map) were
+being silently skipped.
 
 ## Repository layout
 

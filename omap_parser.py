@@ -126,6 +126,120 @@ def _parse_color(elem: ET.Element) -> Color:
     )
 
 
+# --- Secondary color resolution ---
+#
+# Některé OMAP symboly mají primární barvu (color="-1", inner_color="-1") a
+# skutečnou barvu schovanou v sub-strukturách:
+#   - LineSymbol  → mid_symbol / start_symbol / end_symbol (např. 110 Erosion gully)
+#   - AreaSymbol  → pattern direct color / nested symbol (např. 407 Undergrowth)
+#   - PointSymbol → elements → nested symbol (např. 115 Depression)
+# Tyto helpery vrátí první non-NO_COLOR nalezenou v sub-strukturách,
+# nebo NO_COLOR pokud žádná není (Text/Combined symboly atd.).
+#
+# Helpery jsou vzájemně rekurzivní (point_symbol → element → point_symbol → ...),
+# ale OMAP strom má vždy omezenou hloubku (max ~3 úrovně), takže žádné riziko
+# nekonečné rekurze.
+
+
+def _color_ref_from_symbol_body(body_elem: ET.Element) -> int:
+    """
+    Vytáhne primární barvu z elementu <line_symbol> / <area_symbol> / <point_symbol>.
+    Bere přímý atribut, nezasahuje rekurzivně.
+    """
+    tag = body_elem.tag
+    if tag == _tag("line_symbol"):
+        return _attr_int(body_elem, "color", NO_COLOR)
+    if tag == _tag("area_symbol"):
+        return _attr_int(body_elem, "inner_color", NO_COLOR)
+    if tag == _tag("point_symbol"):
+        # Pro point: inner > outer (stejná logika jako symbol_to_color_ref v compare_to_omap)
+        inner = _attr_int(body_elem, "inner_color", NO_COLOR)
+        if inner != NO_COLOR:
+            return inner
+        return _attr_int(body_elem, "outer_color", NO_COLOR)
+    return NO_COLOR
+
+
+def _color_ref_from_wrapped_symbol(symbol_wrapper: ET.Element) -> int:
+    """
+    Z <symbol> wrapperu (obsahuje line_symbol / area_symbol / point_symbol)
+    vytáhne barvu. Pokud primární barva v těle symbolu je NO_COLOR a tělo je
+    point_symbol s elementy, jde se rekurzivně dál (Vineyard-style nesting).
+    """
+    for child_tag in ("line_symbol", "area_symbol", "point_symbol"):
+        body = symbol_wrapper.find(_tag(child_tag))
+        if body is None:
+            continue
+        color = _color_ref_from_symbol_body(body)
+        if color != NO_COLOR:
+            return color
+        # Recurse: point_symbol může mít <element> children s vnořenými barvami.
+        if child_tag == "point_symbol":
+            color = _secondary_color_for_point(body)
+            if color != NO_COLOR:
+                return color
+    return NO_COLOR
+
+
+def _secondary_color_for_line(line_elem: ET.Element) -> int:
+    """
+    Hledá barvu v mid_symbol / start_symbol / end_symbol child elementech
+    <line_symbol>. Každý z nich obsahuje <symbol> wrapper, ten <point_symbol>
+    (nebo line/area_symbol) s barvou.
+    """
+    for sub_tag in ("mid_symbol", "start_symbol", "end_symbol"):
+        sub = line_elem.find(_tag(sub_tag))
+        if sub is None:
+            continue
+        wrapper = sub.find(_tag("symbol"))
+        if wrapper is None:
+            continue
+        color = _color_ref_from_wrapped_symbol(wrapper)
+        if color != NO_COLOR:
+            return color
+    return NO_COLOR
+
+
+def _secondary_color_for_area(area_elem: ET.Element) -> int:
+    """
+    Hledá barvu v <pattern> child elementech <area_symbol>.
+    Dvě varianty:
+        - pattern type="1" (line pattern): barva přímo jako 'color' atribut.
+        - pattern type="2" (point pattern): vnořený <symbol> wrapper s body.
+    """
+    for pattern in area_elem.findall(_tag("pattern")):
+        ptype = _attr_int(pattern, "type", 0)
+        if ptype == 1:
+            # Line pattern — color atribut přímo na <pattern>.
+            color = _attr_int(pattern, "color", NO_COLOR)
+            if color != NO_COLOR:
+                return color
+            # Některé varianty mohou mít i nested — pokračujeme do fallbacku.
+        # Point pattern (ptype=2) nebo line pattern bez direct color: hledej nested.
+        wrapper = pattern.find(_tag("symbol"))
+        if wrapper is None:
+            continue
+        color = _color_ref_from_wrapped_symbol(wrapper)
+        if color != NO_COLOR:
+            return color
+    return NO_COLOR
+
+
+def _secondary_color_for_point(point_elem: ET.Element) -> int:
+    """
+    Hledá barvu v <element> children <point_symbol>.
+    Každý <element> obsahuje <symbol> wrapper → line/area/point_symbol s barvou.
+    """
+    for element in point_elem.findall(_tag("element")):
+        wrapper = element.find(_tag("symbol"))
+        if wrapper is None:
+            continue
+        color = _color_ref_from_wrapped_symbol(wrapper)
+        if color != NO_COLOR:
+            return color
+    return NO_COLOR
+
+
 # --- Parsování symbolů ---
 
 def _parse_description(symbol_elem: ET.Element) -> str:
@@ -189,6 +303,7 @@ def _parse_line_symbol(elem: ET.Element) -> LineSymbol:
         has_mid_symbol=line_elem.find(_tag("mid_symbol")) is not None,
         has_start_symbol=line_elem.find(_tag("start_symbol")) is not None,
         has_end_symbol=line_elem.find(_tag("end_symbol")) is not None,
+        secondary_color_ref=_secondary_color_for_line(line_elem),
     )
 
 
@@ -214,6 +329,7 @@ def _parse_point_symbol(elem: ET.Element) -> PointSymbol:
         outer_width=_attr_int(point_elem, "outer_width"),
         outer_color_ref=_attr_int(point_elem, "outer_color", NO_COLOR),
         elements_count=_attr_int(point_elem, "elements"),
+        secondary_color_ref=_secondary_color_for_point(point_elem),
     )
 
 
@@ -237,6 +353,7 @@ def _parse_area_symbol(elem: ET.Element) -> AreaSymbol:
         inner_color_ref=_attr_int(area_elem, "inner_color", NO_COLOR),
         min_area=_attr_int(area_elem, "min_area"),
         patterns_count=_attr_int(area_elem, "patterns"),
+        secondary_color_ref=_secondary_color_for_area(area_elem),
     )
 
 

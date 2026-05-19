@@ -1,0 +1,99 @@
+
+=== forest sample.omap ===
+Měřítko: 1:10000
+Barev: 22
+Symbolů: 158
+
+Symboly po typech:
+  POINT       56
+  LINE        60
+  AREA        33
+  TEXT         4
+  COMBINED     5
+
+Barvy (22):
+    0  #CC00FF  Purple [PURPLE]
+    1  #000000  Black [BLACK]
+    2  #E8AD7F  Brown 50%
+    3  #000000  Black below light browns
+    4  #21D1FF  Opaque Blue
+    5  #21D1FF  Blue [BLUE]
+    6  #90E8FF  Blue 50%
+    7  #D15C00  Brown [BROWN]
+    8  #E87E1A  OpenOrienteering Orange
+    9  #B2B2B2  Black 30%
+   10  #9EBA1D  Green 50%, Yellow
+   11  #3DFF16  Green over White over Green
+   12  #FFFFFF  Opaque White over Green
+   13  #3DFF16  Opaque Green
+   14  #3DFF16  Green [GREEN]
+   15  #8AFF73  Green 60%
+   16  #C4FFB9  Green 30%
+   17  #3DFF16  Green below light greens
+   18  #FFBA35  Yellow [YELLOW]
+   19  #FFDC9A  Yellow 50%
+   20  #FFFFFF  White over Yellow 70%
+   21  #FFCE71  Yellow 70%
+
+Line symboly (prvních 10 z 60):
+  ISOM     name                             width color  dashed
+  101      Contour                          0.21mm Brown      no
+  102      Index contour                    0.38mm Brown      no
+  103      Form line                        0.21mm Brown     yes
+  106      Earth bank                       0.27mm Brown      no
+  106.1    Earth bank, very high            0.38mm Brown      no
+  106.2    Earth bank, tag line             0.21mm Brown      no
+  107      Earth wall                       0.21mm Brown      no
+  108      Small earth wall                 0.21mm Brown     yes
+  109      Erosion gully                    0.38mm Brown      no
+  110      Small erosion gully              0.00mm -          no
+
+Area symboly (prvních 10 z 33):
+  ISOM     name                           color                          patterns
+  202      Rock pillars/cliffs            Black                                 0
+  211      Open sandy ground              Yellow 50%                            1
+  212      Bare rock                      Black 30%                             0
+  301      Lake                           Blue 50%                              0
+  302      Pond                           Opaque Blue                           0
+  309      Uncrossable marsh              -                                     1
+  310      Marsh                          -                                     1
+  311      Indistinct marsh               -                                     2
+  401      Open land                      Yellow                                0
+  402      Open land with scattered trees -                                     1
+
+Point symboly (prvních 10 z 56):
+  ISOM     name                             radius color elem
+  104      Slope line                        1.50mm -        1
+  106.0.1  Earth bank, minimum size          1.50mm -        3
+  106.1.1  Earth bank, very high, minimum    1.50mm -        3
+  112      Small knoll                       0.38mm Brown    0
+  113      Elongated knoll                   1.50mm -        1
+  115      Small depression                  1.50mm -        1
+  116      Pit                               1.35mm -        1
+  117.1    Broken ground, small              0.14mm Brown    0
+  117.2    Broken ground, big                0.19mm Brown    0
+  118      Special land form feature         1.50mm -        2
+
+Text symboly (4):
+  105      Contour value                  font: Arial size: 3114
+  603.1    Spot height, text              font: Arial size: 3131
+  703      Control number                 font: Arial size: 5500
+  980.0.2  Text                           font: Arial size: 8000
+
+ISOM kódy celkem (158 unikátních):
+  101       102       103       104       105       106       106.0.1   106.1     106.1.1   106.2   
+  107       108       109       110       112       113       115       116       117.1     117.2   
+  118       201       201.0.1   201.1     201.2     202       203       203.0.1   203.1     203.1.1 
+  203.2     203.2.1   204       205       206       206.1     207       208       208.1     209     
+  209.1     210       210.1     211       212       301       301.1     301.2     302       303     
+  305       306       307       308       309       309.1     309.2     310       310.1     311     
+  311.1     312       313       314       401       402       403       404       405       406     
+  407       408       409       410       410.1     411.0     411.1     411.2     412       413     
+  414       415       416       418       419       420       501.0     501.5     502       502.1   
+  503       503.1     504       505       506       507       508       509       512       515     
+  516       517       518       518.1     519       520       521       522       523       524     
+  525       526       526.1     527       527.1     528       528.1     529       529.1     529.2   
+  530       530.1     530.2     531       532       533       534       535       536       537     
+  538       539       540       601       601.1     601.2     601.3     602       603.0     603.1   
+  701       702       703       704       705       706       707       708       709       709.1   
+  709.2     710       711       712       713       799       980.0.2   999     

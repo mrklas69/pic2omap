@@ -1,0 +1,35 @@
+# Pic2Omap .gitignore
+
+# Generated output (masks, overviews, reports — regenerable z input + kódu)
+output/
+
+# IOF specification PDFs — velké binární soubory (~22 MB), public download
+# URL v docs/spec_check_*.md a RESEARCH.md
+docs/*.pdf
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual envs
+venv/
+.venv/
+env/
+.env/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code local settings (user-specific permissions)
+.claude/settings.local.json

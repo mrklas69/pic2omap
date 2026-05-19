@@ -184,6 +184,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
     # kategorie. Bez --omap zůstává v1 chování (default kód per kategorie).
     green_priority_map: dict[int, str] | None = None
     yellow_priority_map: dict[int, str] | None = None
+    black_priority_map: dict[int, str] | None = None
     if args.omap is not None:
         from omap_parser import parse_omap
         from color_profile import build_color_profiles
@@ -201,8 +202,12 @@ def cmd_detect(args: argparse.Namespace) -> int:
         yellow_priority_map = build_priority_to_area_code(
             library, ColorCategory.YELLOW, category_map,
         )
-        print(f"  v2 disambiguation: {len(green_priority_map)} GREEN priorities, "
-              f"{len(yellow_priority_map)} YELLOW priorities z {args.omap.name}")
+        black_priority_map = build_priority_to_area_code(
+            library, ColorCategory.BLACK, category_map,
+        )
+        print(f"  v2 disambiguation: {len(green_priority_map)} GREEN / "
+              f"{len(yellow_priority_map)} YELLOW / {len(black_priority_map)} BLACK "
+              f"priorities z {args.omap.name}")
 
     # GREEN areas
     green_codes = {"406", "408", "410"}
@@ -241,6 +246,27 @@ def cmd_detect(args: argparse.Namespace) -> int:
         next_id += len(yellow_objs)
         _print_area_breakdown("yellow_area_v1", yellow_objs,
                               default=DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.YELLOW])
+
+    # BLACK areas (526 Building + 527.1 Settlement + 528 OOB).
+    # Default 526 — všechny solid black area sdílí priority 1 (AMBIGUOUS),
+    # disambiguation v2 je nerozliší. Per-shape heuristika (Settlement = kruh,
+    # Building = obdélník) by mohla pomoct v budoucnu.
+    black_codes = {"526", "527", "527.1", "528"}
+    if symbols_filter is None or symbols_filter & black_codes:
+        black_objs, black_mask = detect_area(
+            out_dir=out_dir, image_shape=(h, w),
+            category=ColorCategory.BLACK,
+            starting_id=next_id, iteration=args.iter,
+            map_orientation_deg=orientation_deg,
+            priority_to_code=black_priority_map,
+        )
+        nz = black_mask > 0
+        write_zone = nz & (claim_mask == 0)
+        claim_mask[write_zone] = black_mask[write_zone]
+        all_objects.extend(black_objs)
+        next_id += len(black_objs)
+        _print_area_breakdown("black_area_v1", black_objs,
+                              default=DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.BLACK])
 
     # Post-filter na --symbols (KISS — detector spustí vše, filter až po).
     # Důvod: detektory budou produkovat víc symbol_codes (101 + 102 z jednoho běhu),

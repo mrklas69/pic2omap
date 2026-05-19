@@ -49,6 +49,12 @@ from omap_model import NO_COLOR, AreaSymbol, SymbolLibrary, SymbolType
 MIN_AREA_PX_PER_CATEGORY: dict[ColorCategory, int] = {
     ColorCategory.GREEN: 30,    # GT 99 solid → 114 detekováno (mírná over-segmentace)
     ColorCategory.YELLOW: 20,   # GT 26 solid → 26 detekováno (exact match)
+    # Black: budovy a OOB plochy. Threshold 20 — preferujeme recall (budovy
+    # malé, 20-100 px ve forest sample). Mírná over-detection (~1.2×) z
+    # balvanů a road fragmentů akceptovaná. Density filtr (0.4) eliminuje
+    # text fragmenty s nepravidelnými tvary. Per-shape filter (Building =
+    # obdélníkový, balvan = kruhový) je v3 vylepšení.
+    ColorCategory.BLACK: 20,
 }
 
 # Density check eliminuje zaplněné protáhlé fragmenty linií (které by jinak
@@ -62,6 +68,9 @@ MIN_DENSITY = 0.4
 APPLY_STRIPE_FILTER_PER_CATEGORY: dict[ColorCategory, bool] = {
     ColorCategory.GREEN: True,
     ColorCategory.YELLOW: False,
+    # Black: Settlement / Building / OOB jsou kompaktní polygony, ne stripes.
+    # Vypnuto.
+    ColorCategory.BLACK: False,
 }
 
 # Stripe definice: width ≤ STRIPE_MAX_WIDTH px AND h/w ≥ STRIPE_MIN_ASPECT.
@@ -74,6 +83,10 @@ STRIPE_MIN_ASPECT = 2.0
 DEFAULT_SYMBOL_PER_CATEGORY: dict[ColorCategory, str] = {
     ColorCategory.GREEN: "406",    # Forest: slow running (45 z 99 solid green ve forest sample)
     ColorCategory.YELLOW: "403",   # Rough open land (20 z 26 solid yellow)
+    # Black: 526 Building je dominantní (50× ve forest sample). 527.1 Settlement
+    # a 528 OOB jsou méně časté, sdílí stejnou priority (priority 1 Black) →
+    # disambiguation v2 je nemůže rozlišit (všichni AMBIGUOUS v library).
+    ColorCategory.BLACK: "526",
 }
 
 # Confidence — solid area detekce je relativně spolehlivá pokud pass density filter.
@@ -122,8 +135,8 @@ def _is_oom_specific_code(code: str) -> bool:
 ALLOWED_ISOM_PREFIX_PER_CATEGORY: dict[ColorCategory, str] = {
     ColorCategory.GREEN: "4",     # Vegetation only (40X, 41X)
     ColorCategory.YELLOW: "4",    # Vegetation only
+    ColorCategory.BLACK: "5",     # Man-made only (52X Buildings, OOB, ...)
     # Až přibyde BROWN area detektor, "1" + některé z "2".
-    # BLACK area detektor: "5" (man-made).
 }
 
 
@@ -347,7 +360,8 @@ def detect(
 
     # Default ISOM kód podle kategorie (fallback pro v2 disambiguation).
     if category not in DEFAULT_SYMBOL_PER_CATEGORY:
-        raise SystemExit(f"area_v1 nepodporuje kategorii {category} (jen GREEN, YELLOW).")
+        supported = ", ".join(c.value for c in DEFAULT_SYMBOL_PER_CATEGORY)
+        raise SystemExit(f"area_v1 nepodporuje kategorii {category} (jen {supported}).")
     default_code = DEFAULT_SYMBOL_PER_CATEGORY[category]
     # detection_method = jméno detektoru (= název souboru), ne per-kategorie.
     detection_method = "area_v1"

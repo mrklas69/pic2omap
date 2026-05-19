@@ -2,6 +2,11 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## Black area detector (sezení 7)
+
+- [x] **`area_v1` BLACK kategorie** — extension přes `MIN_AREA_PX_PER_CATEGORY[BLACK]=20` + `DEFAULT_SYMBOL_PER_CATEGORY[BLACK]="526"` + `ALLOWED_ISOM_PREFIX_PER_CATEGORY[BLACK]="5"` (man-made). Forest sample: 59 detekováno / GT 50 = **1.18×** (mírná over-detection z balvanů a road fragmentů). KISS — žádný nový soubor, jen 1 dict entry per parametr. Disambiguation v2 nepomohla (BLACK priority je AMBIGUOUS: 526/527.1/528/202/601.1 sdílí priority 1). [2026-05-19 sezení 7]
+- [x] **`pic2db.cmd_detect` BLACK area volání** — symbol filter `{526, 527, 527.1, 528}`. [2026-05-19 sezení 7]
+
 ## Per-priority area disambiguation v2 (sezení 7)
 
 - [x] **`area_v1` + `--omap` flag** — per-component priority overlap voting → konkrétní ISOM kód místo default per kategorie. Heuristiky: filter OOM-specific (411.X), sémantický filtr (jen 4XX vegetation pro GREEN/YELLOW), majority threshold 0.50. Forest sample zlepšení: 4× 408 + 3× 404 (= 8 % areas s konkrétním kódem místo default). Memory: priority 10 Green 50% Yellow má UNIQUE mapping na 527 Settlement v OMAP, ale sémantický filtr to správně odmítl. [2026-05-19 sezení 7]

@@ -2,6 +2,10 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## 103 Form line experiment (sezení 7)
+
+- [~] **`form_line_v1`** — co-linear pair heuristika nad mid peak brown skeletonu. Filter krátké (5-50 px) + paralelní soused (cosine ≥ 0.85) do 30 px. **Výsledek**: 20 detekováno / GT 3 = 6.7× over-claim. Odpojeno z `cmd_detect`, soubor jako reference. Stejný pattern jako `erosion_gully_v1` — sparse GT v over-segmented bucketu. Memory: `sparse-gt-naive-detector-trap`. [2026-05-19 sezení 7]
+
 ## Black area detector (sezení 7)
 
 - [x] **`area_v1` BLACK kategorie** — extension přes `MIN_AREA_PX_PER_CATEGORY[BLACK]=20` + `DEFAULT_SYMBOL_PER_CATEGORY[BLACK]="526"` + `ALLOWED_ISOM_PREFIX_PER_CATEGORY[BLACK]="5"` (man-made). Forest sample: 59 detekováno / GT 50 = **1.18×** (mírná over-detection z balvanů a road fragmentů). KISS — žádný nový soubor, jen 1 dict entry per parametr. Disambiguation v2 nepomohla (BLACK priority je AMBIGUOUS: 526/527.1/528/202/601.1 sdílí priority 1). [2026-05-19 sezení 7]

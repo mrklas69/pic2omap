@@ -98,6 +98,18 @@ def cmd_detect(args: argparse.Namespace) -> int:
     # Pro multi-iter persistent IDs napříč iteracemi přijde matching v cmd diff.
     next_id = 1
 
+    # --- Step 0 (fáze A): orientace mapy ---
+    # Spouští se PŘED recognition detektory, protože jejich filtry (stripe filter
+    # v area_v1, později víc) potřebují vědět rotation. Fallback 0° pro mapy
+    # bez detekovatelných north lines (např. forest sample).
+    from orientation_v1 import detect_orientation
+    orientation_deg = detect_orientation(img)
+    if orientation_deg is None:
+        orientation_deg = 0.0
+        print(f"  orientation_v1:   {orientation_deg:>5.2f}° (fallback, north lines nenalezeny)")
+    else:
+        print(f"  orientation_v1:   {orientation_deg:>5.2f}° (z paralelních north lines)")
+
     # --- Brown line detector v1 ---
     # Aktivuje se pokud filter chybí, nebo obsahuje 101/102/109 (erosion gully
     # je refinement nad 102, takže filter 109 znamená "chci celý brown line pipeline").
@@ -127,6 +139,49 @@ def cmd_detect(args: argparse.Namespace) -> int:
         # crossing_signal + pointed_cap_count helpery pro budoucí re-use.
         # Viz memory `erosion-gully-vs-index-contour`.
 
+    # --- Area detector v1 (green + yellow solid fills) ---
+    # area_v1.detect je parametrizovaný kategorií, voláme 2× per category.
+    # Filter logika: aktivovat green pokud bez filtru NEBO filter obsahuje
+    # nějaký green code (406/408/410). Yellow analogicky (401/403).
+    from area_v1 import detect as detect_area, DEFAULT_SYMBOL_PER_CATEGORY
+    from color_category import ColorCategory
+
+    # GREEN areas
+    green_codes = {"406", "408", "410"}
+    if symbols_filter is None or symbols_filter & green_codes:
+        green_objs, green_mask = detect_area(
+            out_dir=out_dir, image_shape=(h, w),
+            category=ColorCategory.GREEN,
+            starting_id=next_id, iteration=args.iter,
+            map_orientation_deg=orientation_deg,
+        )
+        nz = green_mask > 0
+        # Konflikt s brown line: jen kde claim_mask je 0 (unclaimed). Brown line
+        # je nakreslena PŘES area v reálné mapě, takže její claimy mají prioritu.
+        write_zone = nz & (claim_mask == 0)
+        claim_mask[write_zone] = green_mask[write_zone]
+        all_objects.extend(green_objs)
+        next_id += len(green_objs)
+        default = DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.GREEN]
+        print(f"  green_area_v1:    {len(green_objs):>4} objektů (všechny code={default})")
+
+    # YELLOW areas
+    yellow_codes = {"401", "403"}
+    if symbols_filter is None or symbols_filter & yellow_codes:
+        yellow_objs, yellow_mask = detect_area(
+            out_dir=out_dir, image_shape=(h, w),
+            category=ColorCategory.YELLOW,
+            starting_id=next_id, iteration=args.iter,
+            map_orientation_deg=orientation_deg,
+        )
+        nz = yellow_mask > 0
+        write_zone = nz & (claim_mask == 0)
+        claim_mask[write_zone] = yellow_mask[write_zone]
+        all_objects.extend(yellow_objs)
+        next_id += len(yellow_objs)
+        default = DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.YELLOW]
+        print(f"  yellow_area_v1:   {len(yellow_objs):>4} objektů (všechny code={default})")
+
     # Post-filter na --symbols (KISS — detector spustí vše, filter až po).
     # Důvod: detektory budou produkovat víc symbol_codes (101 + 102 z jednoho běhu),
     # filtrovat per-detector dělá API složitější. Filter na konci je 1 řádek.
@@ -151,6 +206,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
         objects=all_objects,
         non_map_elements=[],   # fáze A přijde později
         unclaimed_pixel_count=unclaimed,
+        map_orientation_deg=orientation_deg,
     )
 
     db_dir.mkdir(parents=True, exist_ok=True)

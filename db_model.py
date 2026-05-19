@@ -72,6 +72,10 @@ class DBSnapshot:
     objects: list[MapObject] = field(default_factory=list)
     non_map_elements: list[NonMapElement] = field(default_factory=list)
     unclaimed_pixel_count: int = 0         # pro stop-konvergenci fáze B
+    # Rotace mapy ve stupních (CCW). 0 = sever nahoru (orienťácký default).
+    # Detekce z paralelních north lines (601.x) — viz orientation_v1.py.
+    # None = orientation_v1 nedoběhl nebo nenašel signál → fallback 0 v detektorech.
+    map_orientation_deg: float | None = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -109,6 +113,7 @@ class DBSnapshot:
                 for e in self.non_map_elements
             ],
             "unclaimed_pixel_count": self.unclaimed_pixel_count,
+            "map_orientation_deg": self.map_orientation_deg,
         }
 
     @classmethod
@@ -150,6 +155,7 @@ class DBSnapshot:
             non_map_elements=non_map,
             # .get s defaultem — backward compat pro starší snapshoty bez pole.
             unclaimed_pixel_count=data.get("unclaimed_pixel_count", 0),
+            map_orientation_deg=data.get("map_orientation_deg", 0.0),
         )
 
     def save(self, path: Path) -> None:

@@ -75,6 +75,11 @@ class DBSnapshot:
     objects: list[MapObject]
     non_map_elements: list[NonMapElement]
     unclaimed_pixel_count: int       # pro stop-konvergenci fáze B
+    map_orientation_deg: float | None = 0.0
+        # Rotace v stupních CCW od north=up. Detekce z 601.x paralelních
+        # north lines via orientation_v1. Fallback 0.0 (sever-nahoru, orienťácký
+        # default) pokud signál nedostačující. None vyhrazeno pro "detector
+        # nespuštěn" (zatím nepoužíváme).
 ```
 
 ## Disk layout

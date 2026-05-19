@@ -2,6 +2,18 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## %AUDIT:CODE + %AUDIT:DOCS (sezení 7)
+
+- [x] **`detection_method` rename** — `brown_line_v1` (bylo `brown_thickness_v1`), `area_v1` (bylo `{cat}_area_v1`). Sjednocuje grep-friendly identifikaci s názvy detektorů. [2026-05-19 sezení 7]
+- [x] **`cli_utils.force_utf8_console()`** — extrahován DRY helper, 9 souborů dedupováno (4 řádky × 9 → 2 řádky × 9). [2026-05-19 sezení 7]
+- [x] **`_resolve_db_path` natural sort** — `iter_2 < iter_10` místo lexikografického. [2026-05-19 sezení 7]
+- [x] **Pipeline status SSOT** — README.md = kanonický (Stage 4 ☐ next → ☐ in progress, per-detector status tabulka, Stage 4 metriky v Markdown). IDEAS.md 8-stages duplicitní tabulka redukována na historický odkaz. [2026-05-19 sezení 7]
+- [x] **`@TODO` markery v kódu → TODO.md** — `area_v1.py` stripe filter (odkaz na TODO.md), `omap_parser.py` CombinedSymbol parts (nová položka v TODO.md "Parser"). [2026-05-19 sezení 7]
+- [x] **`db_schema.md` status update** — "návrh (Sezení 5)" → "Implementováno (Sezení 6)". [2026-05-19 sezení 7]
+- [x] **README.md Repository layout** — doplněno 12 nových souborů (pic2db, db_model, detektory, probes, cli_utils) v kategorizovaných sekcích (Entry points / DB infra / Stage 2-3 / Stage 4 / Exploratory). [2026-05-19 sezení 7]
+- [x] **IDEAS.md "Zodpovězeno" sekce** — aktualizováno po Sezeních 3-6 (metrika úspěchu, DB mezivrstva, CoVe rozhodnutí). [2026-05-19 sezení 7]
+- [x] **Typografické opravy** — `spec_check_ISSprOM-2019-2.md` "nĕco" → "něco", "prib." → "přib." (2× výskyt). DIARY/2026-05-19 Sezení 6 H2→H1 heading (konzistence se Sezeními 1-5), "step 0" → "krok 0". [2026-05-19 sezení 7]
+
 ## Architektura pic2db / db2omap (sezení 6)
 
 - [x] **DB schema** (`docs/db_schema.md`) — kanonická specifikace: MapObject + NonMapElement + DBSnapshot. Disk layout `iter_N.json` + 16-bit `claim_mask_iter_N.png`. CLI verby subcommand router. Persistent IDs napříč iter (IoU bbox matching). Stop kritéria fáze B. [2026-05-19 sezení 6]

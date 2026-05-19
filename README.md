@@ -10,22 +10,56 @@ already solved by [CoVe](https://github.com/lpechacek/cove) (integrated in OOM).
 
 **Status: WIP, research-stage. Not yet a usable tool.**
 
+## Architecture (sezení 6)
+
+```
+PNG → pic2db → output/<sample>/db/iter_N.json → db2omap → OMAP
+```
+
+- **pic2db** — raster → structured DB intermediate (annotative claiming, iterative).
+- **db.json** — single source of truth about detected content. Editable, diff-able.
+- **db2omap** — pure serialization DB → OMAP XML (not implemented yet).
+
+Canonical data model + CLI verbs: [`docs/db_schema.md`](docs/db_schema.md).
+
 ## Pipeline status
 
 | # | Stage | Status |
 |---|-------|--------|
+| — | Ground truth metric (`compare_to_omap.py`) | ✓ |
 | 1 | Preprocess (deskew, denoise) | ☐ |
 | 2 | Color separation (palette-based, LAB nearest) | ✓ |
 | 3 | Per-color raster ops (morphology, components, skeletonization) | ✓ |
-| 0 | Ground truth metric (`compare_to_omap.py`) | ✓ |
-| 4 | Symbol recognition (contours first) | ☐ next |
+| 4 | Symbol recognition — detectors | ☐ in progress |
 | 5 | Vectorization (skeleton → polyline → Bezier) | ☐ |
 | 6 | Topology fix | ☐ |
 | 7 | Georeferencing | ☐ |
-| 8 | OMAP XML serialization | ☐ |
+| 8 | OMAP XML serialization (`db2omap`) | ☐ |
 
-Current metric on `forest sample.omap` (Stage 3 output vs OMAP ground truth,
-counts of objects per color category and topological type):
+### Stage 4 detector status (sezení 6)
+
+| Detector | Symbols | Forest sample result |
+|---|---|---|
+| `orientation_v1` | (step 0 — map rotation) | Slovanka 0.0° / forest fallback 0° |
+| `brown_line_v1` | 101 Contour, 102 Index contour | 112 × 101, 26 × 102 |
+| `area_v1` (GREEN) | 406 Vegetation slow (default) | 59 objects |
+| `area_v1` (YELLOW) | 403 Rough open land (default) | 26 objects |
+| `erosion_gully_v1` | 109 Erosion gully | disconnected (0/17 precision, see memory) |
+
+## Detector metrics (forest sample, iter_1)
+
+```
+Symbol               Pic2db   GT    Ratio
+101 Contour            112    51    2.20×   (over-segmented)
+102 Index contour       26    15    1.73×   (+ contaminations)
+406 default green       59    99    0.60×   (post stripe filter)
+403 default yellow      26    26    1.00×   (exact match)
+Total objects:         223
+Claimed pixels:        8.3 %
+```
+
+Per-color category aggregates (Stage 3 vs OMAP ground truth, after secondary
+color fallback added in sezení 5):
 
 ```
 BROWN line ratio:  1.89x  (oversegmented contours — broken by black overlays)
@@ -42,13 +76,38 @@ being silently skipped.
 
 ## Repository layout
 
+### Entry points
+- `pic2db.py` — main CLI (`detect`, `list`, `mark`, `diff`/`export` stubs)
+- `separate_demo.py` — Stage 2 (color separation)
+- `stage3_demo.py` — Stage 3 (morphology + components + skeleton)
+- `compare_to_omap.py` — ground truth metric
+- `dump_symbols.py` — symbol DB overview
+
+### DB infrastructure
+- `db_model.py` — `MapObject` / `NonMapElement` / `DBSnapshot` dataclasses + JSON I/O
+- `cli_utils.py` — shared CLI helpers (UTF-8 console)
+
+### Stage 2/3 pipeline
 - `omap_model.py`, `omap_parser.py` — OMAP symbol DB (dataclass model + XML parser)
 - `color_profile.py`, `color_category.py` — color profiles + semantic families
-- `color_separator.py`, `separate_demo.py` — Stage 2 (palette-based separation)
-- `morphology.py`, `components.py`, `skeleton.py`, `stage3_demo.py` — Stage 3
-- `compare_to_omap.py` — ground truth comparison (Stage 0 metric)
+- `color_separator.py` — palette-based LAB separation
+- `morphology.py`, `components.py`, `skeleton.py` — Stage 3 ops
+
+### Stage 4 detectors
+- `brown_line_v1.py` — 101 / 102 (thickness peak)
+- `area_v1.py` — solid fill areas, parameterized by `ColorCategory`
+- `orientation_v1.py` — map rotation from 601.x north lines
+- `erosion_gully_v1.py` — 109 experiment (disconnected, kept as reference)
+- `peak_visualizer.py` — shared utility (thickness classification, ID overlay)
+
+### Exploratory / probes
+- `thickness_probe.py` — thickness histogram diagnostic
+- `border_probe.py`, `border_overlay.py` — road/contour disambiguation by black border
+
+### Data
 - `resources/` — input rasters + reference `.omap` files
-- `docs/` — diary, spec checks (Czech)
+- `output/` — generated masks, DB snapshots, overlays (gitignored)
+- `docs/` — diary, spec checks, db schema (Czech)
 
 ## Dependencies
 
@@ -63,6 +122,7 @@ The working documents are in Czech:
 - [RESEARCH.md](RESEARCH.md) — survey of existing tools (CoVe, OCAD, Karttapullautin, U-Net papers)
 - [DIARY.md](DIARY.md) — session log (detail in `docs/diary/`)
 - [TODO.md](TODO.md) / [DONE.md](DONE.md) — work tracking
+- [docs/db_schema.md](docs/db_schema.md) — canonical DB model + CLI spec
 - [docs/spec_check_ISOM-2017-2.md](docs/spec_check_ISOM-2017-2.md) — IOF spec verification
 - [docs/spec_check_ISSprOM-2019-2.md](docs/spec_check_ISSprOM-2019-2.md) — sprint spec verification
 

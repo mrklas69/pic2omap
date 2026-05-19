@@ -50,7 +50,6 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 
 ## Dokumentace
 
-- [ ] **Single source of truth pro pipeline status** — tabulka 8 stages se ☐/✓ existuje na 5+ místech (README, IDEAS, DIARY). Drift hrozí. Návrh: README = kanonický, ostatní jen odkazují. Vyřešit při příštím `%AUDIT:DOCS`.
 - [ ] **`docs/db_schema.md` rozšířit** — popsat fáze A vs B, claim conflict resolution (brown line vs area overlap), 16-bit PNG mask format details.
 
 ## Infrastruktura

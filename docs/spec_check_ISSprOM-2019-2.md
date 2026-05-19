@@ -78,8 +78,8 @@ Konkrétní rozdíly:
 | 412 | Cultivated land | OMAP má `412` (shoda!), ale ISOM 412 = Orchard -- **konflikt!** |
 | 413 | Orchard | OMAP má `413` (shoda!), ale ISOM 413 = Vineyard -- **konflikt!** |
 | 414 | Vineyard or similar | OMAP má `414` (shoda!), ale ISOM 414 = Distinct cultivation boundary -- **konflikt!** |
-| 415 | Distinct cultivation boundary | OMAP má `415` (shoda!), ale ISOM 415 = Cultivation boundary -- prib. OK |
-| 416 | Distinct vegetation boundary | OMAP má `416` (shoda!), prib. OK |
+| 415 | Distinct cultivation boundary | OMAP má `415` (shoda!), ale ISOM 415 = Cultivation boundary -- přib. OK |
+| 416 | Distinct vegetation boundary | OMAP má `416` (shoda!), přib. OK |
 | 417 | Prominent large tree | OMAP má `418` (ISOM Prominent large tree) -- jiný kód |
 | 418 | Prominent bush or small tree | OMAP má `419` (ISOM Prominent bush) -- jiný kód |
 | 419 | Prominent vegetation feature | OMAP má `420` (ISOM Prominent vegetation feature) -- jiný kód |
@@ -146,7 +146,7 @@ Tabulka uvádí jen kódy v OMAP, které **nejsou** v ISSprOM 2019-2 vůbec defi
 | 202 | Gigantic boulder/pillar | ISOM kód; ISSprOM má `206` |
 | 203 / 203.0.1 / 203.1 / 203.1.1 / 203.2 / 203.2.1 | Boulder cluster varianty | ISOM kód; ISSprOM má `207` |
 | 204 | Boulder field | ISOM kód; ISSprOM má `208` |
-| 205 | Stony ground? (ISOM 205 je nĕco jiného) | ISOM kód |
+| 205 | Stony ground? (ISOM 205 je něco jiného) | ISOM kód |
 | 206 / 207 | Rocky pit / cave | ISOM; ISSprOM má `203` |
 | 208 / 208.1 | Stony ground | ISOM; ISSprOM má `210` |
 | 210.1 / 210.2 | Boulder / large boulder | ISOM; ISSprOM má `204` / `205` |

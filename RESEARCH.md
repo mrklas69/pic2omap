@@ -3,7 +3,7 @@
 Externí rešerše: existující nástroje, akademické práce, formáty, komunitní zdroje.
 Žije souběžně s `IDEAS.md` — sem patří **co je venku**, do `IDEAS.md` **co bychom mohli udělat my**.
 
-**Poslední aktualizace**: 2026-05-19 (sezení 2)
+**Poslední aktualizace**: 2026-05-19 (sezení 2). Vlastní externí zdroje od té doby nezměněny.
 
 ---
 

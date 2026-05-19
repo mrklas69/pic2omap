@@ -54,20 +54,12 @@ Stop iterace fáze B (kterékoli první):
 - **DB formát = JSON** (`output/<sample>/db/iter_N.json`). Dataclasses + `to_dict`/`from_dict`. Diff mezi iteracemi je grep-friendly. Při škálování na velké mapy lze přejít na Parquet/SQLite — pro forest sample (~540 objektů) JSON stačí.
 - **PurplePen presence = auto-detect** (existence fialových pixelů). Fáze A není povinná pro každý vstup.
 
-## Pipeline (8 stages) — starší pohled, viz Architektura pic2db/db2omap výše
+## Pipeline (8 stages) — historický rozklad
+
+Původní pohled ze Sezení 1, dnes nahrazený pic2db/db2omap architekturou (výše).
+Aktuální stav stages: viz `README.md` (kanonický zdroj). Historicky:
 
 `PNG → [1] preprocess → [2] color separation → [3] per-color raster ops → [4] symbol recognition → [5] vektorizace → [6] topology fix → [7] georef → [8] OMAP serializace`
-
-| # | Stage | Obtížnost | Stav |
-|---|-------|-----------|------|
-| 1 | Preprocess (deskew, denoise, normalizace barev) | nízká | ☐ |
-| 2 | Color separation (palette-based, LAB nearest) | střední | **✓** |
-| 3 | Per-color ops (connected components, skeletonizace, pattern detection) | střední | **✓** (pattern detection odložen do Stage 4) |
-| 4 | **Symbol recognition** (cesta / plot / vrstevnice / balvan / text) | **vysoká** | ☐ |
-| 5 | Vektorizace (skeleton → polyline → Bezier — Schneider 1990) | střední | ☐ |
-| 6 | Topology fix (snap endpoints, close polygons, T-junctions) | střední | ☐ |
-| 7 | Georeferencing (scale, origin, rotace — bez metadat nutný user input) | nízká | ☐ |
-| 8 | OMAP XML serializace + mapování na konkrétní symbol set | nízká | ☐ |
 
 **Pozn.**: Stage 2 přepsán z původního K-means na palette-based separation. Důvod: máme fixní paletu z library (22 barev pro ISOM, 39 pro complete map). Nejbližší barva v LAB prostoru = deterministické, žádný unsupervised clustering, žádné K-tuning.
 
@@ -128,17 +120,18 @@ U-Net / DeepLab segmentace per-pixel → symbol class.
 
 ## Otevřené otázky
 
-### Zodpovězeno (Sezení 2)
+### Zodpovězeno
 
-- ~~Cílový symbolset~~ → **OOM-native (ISOM 2000-based, jak je v OMAP)**, ne IOF přepisování. Sprint zatím mimo scope (nemáme ISSprOM template).
-- ~~Jazyk implementace~~ → **Python** (potvrzeno; numpy 2.4 + opencv 4.13 + skimage 0.26).
-- ~~Strategie symbolové DB~~ → **Extrahovat z OMAP parserem**, ne psát ručně z PDF. Jediný zdroj pravdy = `complete map.omap` (resp. další OMAP soubory v `resources/`).
+- ~~Cílový symbolset~~ (S2) → **OOM-native (ISOM 2000-based)**, ne IOF přepisování. Sprint zatím mimo scope.
+- ~~Jazyk implementace~~ (S2) → **Python** (numpy + opencv + skimage).
+- ~~Strategie symbolové DB~~ (S2) → **Extrahovat z OMAP parserem**, ne psát ručně z PDF. Jediný zdroj pravdy = OMAP soubor.
+- ~~Metrika úspěchu pro Fázi 0~~ (S4+S6) → `compare_to_omap.py` counts per (ColorCategory, ComponentType) + per-symbol breakdown + `--symbols` filter pro per-detector validaci. IoU geometrická metrika odložena po Stage 5 (TODO).
+- ~~Strategie integrace s CoVe~~ (S2 update) → vlastní palette-based separation funguje výborně, CoVe nepotřebujeme. Reconsider pokud Stage 5 (vektorizace) bude problematická.
+- ~~DB jako mezivrstva~~ (S5+S6) → **Implementováno**: `pic2db` (raster → DB) / `db2omap` (DB → OMAP) split. `db_model.py` + `pic2db.py`. Kanonický zdroj: `docs/db_schema.md`.
 
 ### Otevřené
 
-- Co s textem (čísla kontrol, popisky)? OCR (Tesseract?) nebo ignorovat? Title "Forest map sample" je v rasteru, ale není mapový obsah → spíš oříznout než OCRovat.
-- Fialová barva (kurz, kontroly) — vždy ignorovat, nebo nabídnout volbu? V `forest sample.png` 0 fialových pixelů, tj. zatím irrelevantní.
-- Strategie integrace s CoVe: vendoring / fork / přispět upstream / použít OOM jako headless service? **Update Sezení 2**: vlastní palette-based separation funguje výborně, CoVe možná nepotřebujeme — vrátit se k tomu, pokud Stage 5 (vektorizace) bude šlapat.
-- Anotovaný dataset pro ML přístup (B) — vyrobit syntetický z OOM renderů, nebo manuálně anotovat reálné mapy? Sekundární otázka — heuristiky možná vystačí.
-- **Nové (Sezení 2)**: jak detekovat spec verzi OMAP souboru? Měřítko + barvy + jména symbolů jsou indicie, ale nedostačující — soubory neuvádějí explicitně ISOM 2000 vs 2017-2 vs ISSprOM 2019-2. Hrozí miscoding při OMAP exportu.
-- **Nové (Sezení 2)**: jaká je správná metrika úspěchu pro pic2omap? Counts (počet vrstevnic detect vs OMAP) / IoU per category mask / pixel accuracy quantization? Vázáno na Fázi 0 scope definici.
+- **OCR pro text** (čísla kontrol, popisky)? Title "Forest map sample" je v rasteru, ale není mapový obsah → spíš oříznout než OCRovat. Fáze A `NonMapElement` schema připraveno (`db_schema.md`), implementace neproběhla.
+- **Fialová barva** (kurz, kontroly) — vždy ignorovat, nebo nabídnout volbu? Forest sample 0 fialových pixelů, irrelevantní. `IDEAS.md` Fáze A "auto-detect PurplePen" navržen.
+- **Detekce spec verze OMAP** — soubory neuvádějí explicitně ISOM 2000 vs 2017-2 vs ISSprOM 2019-2. Heuristika: měřítko + jména barev + struktura. Vazba na TODO.md.
+- **Anotovaný dataset pro ML přístup (B)** — vyrobit syntetický z OOM renderů, nebo manuálně anotovat reálné mapy? Sekundární — heuristiky možná vystačí.

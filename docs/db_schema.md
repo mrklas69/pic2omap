@@ -1,6 +1,6 @@
 # DB Schema — pic2db / db2omap
 
-**Status**: návrh (Sezení 5, 2026-05-19). Před implementací odsouhlaseno s userem.
+**Status**: Implementováno (Sezení 6, 2026-05-19). `db_model.py` + `pic2db.py` produkční.
 **Zdroj pravdy**: tento soubor. IDEAS.md odkazuje sem, kód implementuje sem.
 
 Mezivrstva mezi rasterem a OMAP XML. `pic2db` plní DB, `db2omap` ji serializuje.

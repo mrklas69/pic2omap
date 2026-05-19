@@ -2,6 +2,14 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## Slovanka2016 Stage 2/3 test (sezení 7)
+
+- [x] **Downscale 143 Mpx → 6.5 Mpx** — Slovanka2016.png (14094×10158) downscaled na 3000 px max dimension (scale 21.3%) jako `resources/Slovanka2016_small.png`. Pragmatický kompromis: zachovává detail orienťáckých symbolů (1.4 m/px), redukuje Stage 2/3 čas. [2026-05-19 sezení 7]
+- [x] **Stage 2 + 3 + pic2db detect na Slovanka small** — orientation_v1 detekoval 0.00° z 34 modrých magnetic north lines (raster north-up, navzdory declination 3.75° v `.pgw`). pic2db produkoval 4968 objektů. [2026-05-19 sezení 7]
+- [x] **`load_priority_masks` UTF-8 fix** — opencv `cv2.imread()` na Windows používá fopen, který neumí UTF-8 cesty (Slovanka má barvy s českou diakritikou v názvech, např. `priority01_Bílá_nad_skoro_všemi.png`). Fix: `np.frombuffer(Path.read_bytes()) + cv2.imdecode()`, obchází fopen encoding. [2026-05-19 sezení 7]
+- [x] **v2 disambiguation funguje na Slovanka custom palette** — Yellow over green priorities 24 (Žlutá 100%) → 401.1, 27 (Žlutá 50%) → 403.1 správně namapovány. 1019× 403.1 + 292× 401.1 + 171× 403 default. [2026-05-19 sezení 7]
+- [x] **Slovanka GT comparison** — BLACK 526.0: 448/402 = 1.11× (slušné), GREEN 406.1+408.1: 1115/1356 = 0.82× (mírně under), BROWN 101+102: 1923/587 = 3.27× (over-segm, horší než forest sample), YELLOW: 1482/1135 = 1.31× (over kvůli 403.1). [2026-05-19 sezení 7]
+
 ## 103 Form line experiment (sezení 7)
 
 - [~] **`form_line_v1`** — co-linear pair heuristika nad mid peak brown skeletonu. Filter krátké (5-50 px) + paralelní soused (cosine ≥ 0.85) do 30 px. **Výsledek**: 20 detekováno / GT 3 = 6.7× over-claim. Odpojeno z `cmd_detect`, soubor jako reference. Stejný pattern jako `erosion_gully_v1` — sparse GT v over-segmented bucketu. Memory: `sparse-gt-naive-detector-trap`. [2026-05-19 sezení 7]

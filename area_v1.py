@@ -219,6 +219,10 @@ def load_priority_masks(priority_dir: Path) -> dict[int, np.ndarray]:
 
     Vrací prázdný dict pokud adresář neexistuje (= bez disambiguation,
     caller fallne na default).
+
+    Pozn.: cv2.imread() na Windows používá fopen, který neumí UTF-8 cesty
+    (Slovanka má barvy s českou diakritikou v názvu, např. priority01_Bílá...).
+    Obcházíme přes Path.read_bytes() + cv2.imdecode(), což cestu nepřebírá.
     """
     masks: dict[int, np.ndarray] = {}
     if not priority_dir.is_dir():
@@ -232,7 +236,12 @@ def load_priority_masks(priority_dir: Path) -> dict[int, np.ndarray]:
             prio = int(num_str)
         except ValueError:
             continue  # Neobvyklý filename, ignoruj.
-        mask = cv2.imread(str(png_path), cv2.IMREAD_GRAYSCALE)
+        # Read bytes přes Python fopen (UTF-8 safe na Windows), pak imdecode.
+        try:
+            data = np.frombuffer(png_path.read_bytes(), dtype=np.uint8)
+        except OSError:
+            continue
+        mask = cv2.imdecode(data, cv2.IMREAD_GRAYSCALE)
         if mask is None:
             continue
         masks[prio] = mask

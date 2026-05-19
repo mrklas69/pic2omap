@@ -152,6 +152,41 @@ def _is_semantically_compatible(code: str, category: ColorCategory) -> bool:
     return code.startswith(allowed_prefix)
 
 
+def _code_sort_key(code: str) -> list[int]:
+    """
+    Rozloží ISOM kód na číselné komponenty pro řazení: "403.1" → [403, 1].
+
+    Použití: výběr "základní" varianty z RGB-skupiny. min() podle tohoto klíče
+    preferuje holý kód ("403" → [403]) před suffixovými ("403.0" → [403, 0]),
+    a nižší suffix ("403.0") před vyšším ("403.1"). Tím detektor volí standardní
+    ISOM symbol místo OOM-custom varianty ("(upraveno)").
+    """
+    parts: list[int] = []
+    for p in code.split("."):
+        # Defenzivně: nečíselné segmenty (nemělo by nastat u area kódů) → 0.
+        parts.append(int(p) if p.isdigit() else 0)
+    return parts
+
+
+def _base_variant(codes: list[str]) -> str:
+    """Z RGB-skupiny vybere základní variantu (nejnižší kód dle _code_sort_key)."""
+    return min(codes, key=_code_sort_key)
+
+
+def _priority_to_rgb(library: SymbolLibrary) -> dict[int, tuple[float, float, float]]:
+    """
+    Mapa priority index (= color.priority = inner_color_ref) → zaokrouhlené RGB.
+
+    Pozn.: v OMAP modelu odkazuje `inner_color_ref` na `color.priority`, ne na
+    pozici v listu. Zaokrouhlení na 4 desetiny sjednotí float reprezentaci, ať
+    barvy s identickou RGB (např. 401.0 vs 401.1) spadnou do stejné skupiny.
+    """
+    return {
+        c.priority: (round(c.r, 4), round(c.g, 4), round(c.b, 4))
+        for c in library.colors
+    }
+
+
 def build_priority_to_area_code(
     library: SymbolLibrary,
     category: ColorCategory,
@@ -179,8 +214,16 @@ def build_priority_to_area_code(
         dict {priority_int: isom_code_str} pro unambiguous priority.
         Ostatní priority chybí — fallback na default per kategorii.
     """
-    # Per priority akumulujeme kandidátní kódy (AreaSymbol code).
-    candidates: dict[int, list[str]] = {}
+    # RGB per priority — pro seskupení barevně-identických symbolů.
+    prio_rgb = _priority_to_rgb(library)
+
+    # Seskup area kódy podle RESOLVED RGB (ne podle priority indexu). Důvod:
+    # OMAP má páry s identickou RGB ale různou priority — např. 401.0 (priority
+    # 40) a 401.1 (priority 24) obě rgb(1.00,0.73,0.21). Color separation je
+    # nerozliší a `deduplicate_by_rgb` jednu zahodí, takže existuje jen jedna
+    # priority maska. Disambiguace pak musí znát VŠECHNY kódy té RGB, aby mohla
+    # vybrat standardní variantu (.0), ne tu, jejíž inner_color náhodou přežil.
+    rgb_to_codes: dict[tuple[float, float, float], list[str]] = {}
     for sym in library.symbols_by_type(SymbolType.AREA):
         # isinstance pro type narrowing (mypy/IDE happy + safety).
         if not isinstance(sym, AreaSymbol):
@@ -191,23 +234,59 @@ def build_priority_to_area_code(
             continue
         if category_map[ref] != category:
             continue
-        candidates.setdefault(ref, []).append(sym.code)
+        if ref not in prio_rgb:
+            continue
+        rgb_to_codes.setdefault(prio_rgb[ref], []).append(sym.code)
 
-    # Per priority: filtruj OOM-specific (411.X) a semanticky nekompatibilní kódy
-    # (5XX Settlement v GREEN je OMAP design choice, ale my chceme jen vegetation).
+    # Pro každou priority v této kategorii namapuj kód podle její RGB skupiny.
+    # Mapujeme i priority, jejíž vlastní maska byla dedupována pryč — to nevadí,
+    # caller načte jen existující masky a použije jen jejich klíče.
     result: dict[int, str] = {}
-    for prio, codes in candidates.items():
+    for prio, cat in category_map.items():
+        if cat != category or prio not in prio_rgb:
+            continue
+        codes = rgb_to_codes.get(prio_rgb[prio], [])
         # Dvojí filtr: ne OOM-specific AND semanticky pasující kategorii.
         clean = [
             c for c in codes
             if not _is_oom_specific_code(c) and _is_semantically_compatible(c, category)
         ]
-        if len(clean) == 1:
-            result[prio] = clean[0]
-        # Pokud clean je prázdný (jen OOM-specific nebo wrong category) NEBO > 1
-        # (genuine ambiguity v rámci kategorie), vynech — caller fallne na default.
+        if not clean:
+            continue
+        # Vyber základní variantu (nejnižší ISOM kód) z RGB-skupiny. Skupina
+        # může mít:
+        #   - jen suffix-varianty téhož base (403.0/403.1) → vybere 403.0,
+        #   - víc různých base se shodnou barvou (Slovanka: plná žlutá =
+        #     401/402/412/413/415, color separation je NEROZLIŠÍ) → vybere
+        #     nejnižší base (401.0 = open land, nejzákladnější žlutá).
+        # Fallback na cizí default by byl barevně horší (přiřadil by bledou
+        # žlutou 403.0 komponentě plné žluté). Nejnižší base = nejzákladnější
+        # symbol té barvy je rozumný kompromis pro v1 (jemné rozlišení uvnitř
+        # jedné barvy stejně není z rasteru možné).
+        result[prio] = _base_variant(clean)
 
     return result
+
+
+def resolve_default_area_code(library: SymbolLibrary, category: ColorCategory) -> str:
+    """
+    Template-aware default kód pro kategorii (fallback když disambiguace selže).
+
+    DEFAULT_SYMBOL_PER_CATEGORY drží holé ISOM base ("403", "406", "526"), ale
+    konkrétní OMAP může mít jen suffixované varianty (Slovanka: "403.0", "406.1",
+    "526.0"). Najdeme area symboly matchnuté `^{base}(\\.\\d+)?$` a vrátíme
+    základní variantu. Bez matche (forest sample má holý "403") vrátíme base.
+
+    Stejný princip jako `brown_line_v1.resolve_brown_line_codes` (memory
+    `template-aware-symbol-codes`).
+    """
+    base = DEFAULT_SYMBOL_PER_CATEGORY[category]
+    pattern = re.compile(rf"^{re.escape(base)}(\.\d+)?$")
+    matches = [
+        s.code for s in library.symbols_by_type(SymbolType.AREA)
+        if isinstance(s, AreaSymbol) and pattern.match(s.code)
+    ]
+    return _base_variant(matches) if matches else base
 
 
 def load_priority_masks(priority_dir: Path) -> dict[int, np.ndarray]:
@@ -328,6 +407,7 @@ def detect(
     min_area_px: int | None = None,
     min_density: float = MIN_DENSITY,
     priority_to_code: dict[int, str] | None = None,
+    default_code: str | None = None,
 ) -> tuple[list[MapObject], np.ndarray]:
     """
     Detektor solid area pro danou kategorii (green / yellow).
@@ -342,8 +422,9 @@ def detect(
         min_density: minimum density = area / bbox_area (filtr elongated linií).
         priority_to_code: optional v2 disambiguation. Pokud zadán, pro každou
             komponentu se zjistí dominantní priority a vyzvedne se konkrétní ISOM
-            kód. Pokud None nebo priority není v mappingu, fallback na
-            DEFAULT_SYMBOL_PER_CATEGORY[category].
+            kód. Pokud None nebo priority není v mappingu, fallback na default_code.
+        default_code: template-aware fallback kód (z resolve_default_area_code).
+            None → DEFAULT_SYMBOL_PER_CATEGORY[category] (forest sample, holé kódy).
 
     Returns:
         (objects, claim_mask) — list MapObject + uint16 mask s ID per pixel.
@@ -371,7 +452,9 @@ def detect(
     if category not in DEFAULT_SYMBOL_PER_CATEGORY:
         supported = ", ".join(c.value for c in DEFAULT_SYMBOL_PER_CATEGORY)
         raise SystemExit(f"area_v1 nepodporuje kategorii {category} (jen {supported}).")
-    default_code = DEFAULT_SYMBOL_PER_CATEGORY[category]
+    # Caller může předat template-aware default (Slovanka "403.0"); jinak holý base.
+    if default_code is None:
+        default_code = DEFAULT_SYMBOL_PER_CATEGORY[category]
     # detection_method = jméno detektoru (= název souboru), ne per-kategorie.
     detection_method = "area_v1"
 

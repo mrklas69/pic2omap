@@ -27,6 +27,7 @@ symboly). To je OK — fáze B je iterativní, další detektor přidá další 
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import cv2
@@ -34,6 +35,7 @@ import numpy as np
 
 from color_category import ColorCategory
 from db_model import MapObject
+from omap_model import LineSymbol, SymbolLibrary, SymbolType
 from peak_visualizer import classify_segments
 
 
@@ -44,12 +46,67 @@ CONFIDENCE_THICK = 0.80   # → 102 Index contour
 
 DETECTION_METHOD = "brown_line_v1"
 
+# Default ISOM kódy pro thin/thick peaks. Slouží jako fallback pro
+# template-aware lookup (resolve_brown_line_codes) — pokud library nemá
+# matching symbol, vrátíme tyto defaults. Forest sample.omap má přesně
+# tyto kódy bez suffixu, takže fallback "vždy funguje" pro něj.
+DEFAULT_THIN_CODE = "101"     # Contour
+DEFAULT_THICK_CODE = "102"    # Index contour
+
+# Regex patterny pro template-aware lookup. Slovanka2016 má kódy "101.0" /
+# "102.0" (.0 suffix konvence), forest sample "101" / "102". Pattern matchne
+# obojí. Stejný idiom jako OOM_SPECIFIC_PATTERNS v area_v1.
+_THIN_CODE_PATTERN = re.compile(r"^101(\.\d+)?$")
+_THICK_CODE_PATTERN = re.compile(r"^102(\.\d+)?$")
+
+
+def resolve_brown_line_codes(library: SymbolLibrary) -> tuple[str, str]:
+    """
+    Pro danou library vyzvedne exact ISOM kódy pro 101 Contour a 102 Index contour.
+
+    Důvod: brown_line_v1 detektor potřebuje claimnout symbol_code, který je
+    v té konkrétní library — db2omap export by jinak nenašel matching symbol_id.
+    Forest sample.omap: ("101", "102"). Slovanka2016.omap: ("101.0", "102.0").
+
+    Implementace:
+        Iteruje LineSymboly v library a první symbol s `code` matchnutým proti
+        _THIN_CODE_PATTERN / _THICK_CODE_PATTERN bere jako autoritativní.
+        V praxi OMAP soubory mají per Contour / Index contour jeden symbol,
+        takže "první match" nehrozí kolize.
+
+    Returns:
+        (thin_code, thick_code). Pokud library nemá matching symbol pro některou
+        rolí, vrátí DEFAULT_THIN_CODE / DEFAULT_THICK_CODE jako fallback —
+        detekce stále poběží, jen na fallback kódu.
+
+    Viz memory `template-aware-symbol-codes` (Slovanka .0 suffix vs forest sample).
+    """
+    thin_code: str | None = None
+    thick_code: str | None = None
+    # symbols_by_type vrací list[SymbolBase], castujeme přes isinstance pro IDE.
+    for sym in library.symbols_by_type(SymbolType.LINE):
+        if not isinstance(sym, LineSymbol):
+            continue
+        if thin_code is None and _THIN_CODE_PATTERN.match(sym.code):
+            thin_code = sym.code
+        elif thick_code is None and _THICK_CODE_PATTERN.match(sym.code):
+            thick_code = sym.code
+        # Early exit jakmile máme oba (typicky se najdou rychle).
+        if thin_code is not None and thick_code is not None:
+            break
+    return (
+        thin_code if thin_code is not None else DEFAULT_THIN_CODE,
+        thick_code if thick_code is not None else DEFAULT_THICK_CODE,
+    )
+
 
 def detect(
     out_dir: Path,
     image_shape: tuple[int, int],
     starting_id: int,
     iteration: int,
+    thin_code: str = DEFAULT_THIN_CODE,
+    thick_code: str = DEFAULT_THICK_CODE,
 ) -> tuple[list[MapObject], np.ndarray]:
     """
     Spustí brown line detekci nad Stage 3 výstupy.
@@ -59,6 +116,9 @@ def detect(
         image_shape: (h, w) zdrojového rasteru — claim_mask má stejné rozměry.
         starting_id: první volné MapObject.id (pro persistent IDs napříč detektory).
         iteration: číslo iterace, půjde do MapObject.detected_in_iter.
+        thin_code: ISOM kód pro thin peak (default "101"). Pro template-aware
+            lookup použij `resolve_brown_line_codes(library)`.
+        thick_code: ISOM kód pro thick peak (default "102").
 
     Returns:
         (objects, claim_mask). claim_mask je uint16 (h, w), 0 = unclaimed,
@@ -95,12 +155,12 @@ def detect(
     # Manual counter — zachovává persistent ID napříč různými skupinami.
     next_id = starting_id
 
-    # Thin peak → 101 Contour.
+    # Thin peak → 101 Contour (exact code z library nebo default).
     for label_id in groups["thin"]:
         obj = _build_object_from_label(
             labels, label_id,
             object_id=next_id,
-            symbol_code="101",
+            symbol_code=thin_code,
             iteration=iteration,
             confidence=CONFIDENCE_THIN,
         )
@@ -115,7 +175,7 @@ def detect(
         obj = _build_object_from_label(
             labels, label_id,
             object_id=next_id,
-            symbol_code="102",
+            symbol_code=thick_code,
             iteration=iteration,
             confidence=CONFIDENCE_THICK,
         )

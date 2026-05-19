@@ -18,7 +18,8 @@ PNG → pic2db → output/<sample>/db/iter_N.json → db2omap → OMAP
 
 - **pic2db** — raster → structured DB intermediate (annotative claiming, iterative).
 - **db.json** — single source of truth about detected content. Editable, diff-able.
-- **db2omap** — pure serialization DB → OMAP XML (not implemented yet).
+- **db2omap** — serialization DB → OMAP XML. PoC stage: contours + linear georef
+  fit, symbols/colors/georef taken from a template OMAP. Not production geometry yet.
 
 Canonical data model + CLI verbs: [`docs/db_schema.md`](docs/db_schema.md).
 
@@ -31,19 +32,26 @@ Canonical data model + CLI verbs: [`docs/db_schema.md`](docs/db_schema.md).
 | 2 | Color separation (palette-based, LAB nearest) | ✓ |
 | 3 | Per-color raster ops (morphology, components, skeletonization) | ✓ |
 | 4 | Symbol recognition — detectors | ☐ in progress |
-| 5 | Vectorization (skeleton → polyline → Bezier) | ☐ |
+| 5 | Vectorization (skeleton → polyline → Bezier) | ◐ PoC (contours only) |
 | 6 | Topology fix | ☐ |
-| 7 | Georeferencing | ☐ |
-| 8 | OMAP XML serialization (`db2omap`) | ☐ |
+| 7 | Georeferencing | ◐ PoC (linear bbox fit) |
+| 8 | OMAP XML serialization (`db2omap`) | ◐ PoC |
 
-### Stage 4 detector status (sezení 6)
+### Stage 4 detector status (sezení 8)
 
-| Detector | Symbols | Forest sample result |
+Detectors are template-aware — exact ISOM codes are resolved from the supplied
+`--omap` library (forest sample `101`, Slovanka `101.0`). Area disambiguation
+groups symbols by RGB and picks the base variant, because OMAP often has
+RGB-identical pairs (`403.0` Rough open land ≡ `403.1` "Paseka na zelené") that
+color separation cannot tell apart.
+
+| Detector | Symbols | Result |
 |---|---|---|
 | `orientation_v1` | (step 0 — map rotation) | Slovanka 0.0° / forest fallback 0° |
-| `brown_line_v1` | 101 Contour, 102 Index contour | 112 × 101, 26 × 102 |
-| `area_v1` (GREEN) | 406 Vegetation slow (default) | 59 objects |
-| `area_v1` (YELLOW) | 403 Rough open land (default) | 26 objects |
+| `brown_line_v1` | 101/102 (template-aware) | forest 112×101, 26×102 / Slovanka 1825×101.0, 98×102.0 |
+| `area_v1` (GREEN) | 406/407/408 + default | forest 59 / Slovanka 1115 (766×406.1) |
+| `area_v1` (YELLOW) | 401/403/404 + default | forest 26 / Slovanka 1482 (1182×403.0) |
+| `area_v1` (BLACK) | 526 Building | forest 59 / Slovanka 448 (1.11× GT) |
 | `erosion_gully_v1` | 109 Erosion gully | disconnected (0/17 precision, see memory) |
 
 ## Detector metrics (forest sample, iter_1)
@@ -77,7 +85,8 @@ being silently skipped.
 ## Repository layout
 
 ### Entry points
-- `pic2db.py` — main CLI (`detect`, `list`, `mark`, `diff`/`export` stubs)
+- `pic2db.py` — main CLI (`detect`, `list`, `mark`, `export` PoC; `diff` stub)
+- `db2omap.py` — DB → OMAP serialization (PoC)
 - `separate_demo.py` — Stage 2 (color separation)
 - `stage3_demo.py` — Stage 3 (morphology + components + skeleton)
 - `compare_to_omap.py` — ground truth metric

@@ -6,8 +6,10 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 
 - [ ] **Per-priority area disambiguation v3** — v2 (`area_v1` + `--omap` flag, sezení 7) zlepšil per-symbol klasifikaci 8 % (4× 408 + 3× 404). Limitace: component-level majority threshold (50 %) je moc přísný pro fragmentovanou Stage 3, 410 Opaque Green stále nedetekováno, 408 hodně pod GT. v3: per-pixel priority assignment + split komponenty na sub-areas per dominantní priority. Vyžaduje rework Stage 3 connected components.
 - [ ] **Black area per-shape filter** — `area_v1` BLACK detekuje 59/50 GT (1.18× over) ve forest sample. False positives jsou balvany (kruhové) a road fragmenty. Per-shape filter: Building = obdélníkový (aspect_ratio compactness), balvan = kruhový → reject. 527 Settlement / 528 OOB sdílí priority s 526 → disambiguation v2 je nerozliší, nutný shape-based classifier.
-- [ ] **Template-aware symbol codes v detektorech** — `brown_line_v1` hardkóduje `"101"`/`"102"`, ale Slovanka má `"101.0"`/`"102.0"` (`.0` suffix konvence). Detektor přijme `SymbolLibrary` jako parameter, vyzvedne přesný code z library. `area_v1` v2 disambiguation už je template-aware (lookup v library), default fallback ne. Memory: `template-aware-symbol-codes`.
-- [ ] **YELLOW disambiguation over-detection 403.1** — Slovanka test: 1019× 403.1 detekováno / 47× GT = 21× over. Příčina: color separation klasifikuje transient pixely mezi green a yellow jako priority 27 (Yellow 50% over green), víc než realita. Možná vyžaduje closing v color_separator nebo per-component context check (size + neighbour color).
+- [ ] **Disambiguation performance** — `_disambiguate_component` dělá per-component full-image AND se VŠEMI priority maskami. Slovanka BLACK: 448 komp × 19 masek × 6.5 Mpx = desítky sekund. Omezit overlap na bbox komponenty (crop masku na bbox před AND).
+- [x] **Template-aware symbol codes v detektorech** (sezení 8) — `resolve_brown_line_codes` v `brown_line_v1` + `resolve_default_area_code` v `area_v1`. Caller resolvuje exact kódy z library a předá. Slovanka: 101.0/102.0, default 403.0/406.1/526.0. → DONE.
+- [x] **YELLOW disambiguation over-detection 403.1** (sezení 8) — **nebyla to over-detection, ale mislabeling.** 403.0≡403.1 a 401.0≡401.1 mají identickou RGB, color separation je nerozliší, `deduplicate_by_rgb` zahodí jednu masku. Disambiguace lepila přeživší `.1` variantu. Fix: `build_priority_to_area_code` RGB grouping + base-variant výběr. → DONE.
+- [ ] **GREEN/YELLOW area under-detection** — Slovanka: 404.0 (8/159), 407.0 (47/242), 408.1 (302/630) pod GT. Color separation slévá blízké odstíny do dominantní barvy (403.0/406.1). 407 je navíc pattern (šrafa) → pattern detektor. Per-component context nebo jemnější paleta.
 - [~] **109 Erosion gully discrimination v2** — `erosion_gully_v1` (crossing + pointed cap) **odpojen**, 0/17 precision. GT je jen **2 × 109** ve forest sample. Vyžaduje pozici-based check ("leží mezi 101 sousedy" — sample sousedů perpendiculárně k tangentě segmentu). Soubor zůstává jako reference (helpery `crossing_signal`, `pointed_cap_count`). Memory: `erosion-gully-vs-index-contour`.
 - [~] **103 Form line v2** — `form_line_v1` (co-linear pair heuristika) odpojeno (20/3 = 6.7× over-claim). Sparse GT pattern stejný jako 109 erosion gully. v2 vyžaduje pozici-based check (sekvence ≥ 3 co-linear dashů s pravidelnými gaps) nebo multi-sample validation. Memory: `sparse-gt-naive-detector-trap`.
 - [ ] **110 Small erosion gully** — `line_width=0` + `mid_symbol` Brown tečka. 16× ve forest sample. Patří do **point/dot detectoru** (sequence clustering), ne brown line. Budoucí `brown_dot_v1`.
@@ -23,10 +25,13 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 ## DB infrastruktura
 
 - [ ] **`diff` verb (pic2db.py)** — implementovat porovnání dvou iter_N.json. Vyžaduje persistent ID matching přes IoU bbox + symbol_code (zatím schema-only).
-- [ ] **`export` verb (db2omap)** — serializace DBSnapshot → OMAP XML. Vyžaduje:
-  - Polyline vektorizace pixel_blob_id → OMAP coords (Schneider Bezier fit?)
-  - Symbol library mapping (symbol_code → OMAP symbol id)
-  - Pixel → OMAP coord transform (georef-based, plus rotation)
+- [~] **`export` verb (db2omap)** — PoC hotový (sezení 8): `db2omap.py`, areas →
+  kontury, lines → kontura skeletonu, georef = lineární bbox-fit, symbols/colors
+  z template. Forest sample: 188/282 obj, validní OMAP. Co zbývá do produkční verze:
+  - **Přesná georef** — bbox-fit roztahuje (mapa nezabírá celý PNG). Potřebuje DPI / `.pgw` affine + Slovanka declination.
+  - **Line vektorizace path-tracing** — vrstevnice teď jako kontura skeletonu (zdvojená smyčka). Skeleton → polyline středem (graph traversal).
+  - **Bezier fit** — OOM používá kubické Beziery, ne polyline (Schneider fit).
+  - **94 degenerátních objektů** přeskočeno (< 3 body) — drobné line segmenty.
 - [ ] **Multi-iter podpora** — re-link iterace fáze B: po point detection re-evaluovat fragmentované linie. Vyžaduje matching MapObject napříč iteracemi.
 
 ## Stage 2/3 — Cleanup

@@ -139,16 +139,47 @@ def cmd_detect(args: argparse.Namespace) -> int:
     else:
         print(f"  orientation_v1:   {orientation_deg:>5.2f}° (z paralelních north lines)")
 
+    # --- Template-aware setup (POKUD --omap) ---
+    # Parsujeme library JEDNOU pro brown line code resolution + area v2
+    # disambiguation. Bez --omap zůstává v1 chování (default kódy z DEFAULT_*).
+    # Slovanka má kódy "101.0"/"102.0"/"406.0" (.0 suffix), forest sample
+    # bez suffixu — bez resolveru by db2omap export selhal na neexistující ID.
+    library = None
+    if args.omap is not None:
+        from omap_parser import parse_omap
+
+        if not args.omap.exists():
+            print(f"OMAP soubor neexistuje: {args.omap}", file=sys.stderr)
+            return 1
+        library = parse_omap(args.omap)
+
+    # Brown line kódy: pokud máme library, vyzvedneme exact (resp. fallback na
+    # default uvnitř resolveru). Bez library default literály "101"/"102".
+    from brown_line_v1 import (
+        DEFAULT_THICK_CODE,
+        DEFAULT_THIN_CODE,
+        resolve_brown_line_codes,
+    )
+    if library is not None:
+        thin_code, thick_code = resolve_brown_line_codes(library)
+        print(f"  brown_line codes: {thin_code} / {thick_code} (z {args.omap.name})")
+    else:
+        thin_code, thick_code = DEFAULT_THIN_CODE, DEFAULT_THICK_CODE
+
     # --- Brown line detector v1 ---
     # Aktivuje se pokud filter chybí, nebo obsahuje 101/102/109 (erosion gully
     # je refinement nad 102, takže filter 109 znamená "chci celý brown line pipeline").
-    if symbols_filter is None or symbols_filter & {"101", "102", "109"}:
+    # Filter porovnává proti resolved kódům — Slovanka --symbols 101.0 funguje.
+    brown_filter_codes = {thin_code, thick_code, "109"}
+    if symbols_filter is None or symbols_filter & brown_filter_codes:
         from brown_line_v1 import detect as detect_brown_line
         brown_objs, brown_mask = detect_brown_line(
             out_dir=out_dir,
             image_shape=(h, w),
             starting_id=next_id,
             iteration=args.iter,
+            thin_code=thin_code,
+            thick_code=thick_code,
         )
         # Merge claim mask: kde detector claimed (nonzero), zapsat do globální mask.
         # Pro v1 nejsou kolize (jen 1 detektor), do budoucna bude potřeba conflict resolution.
@@ -156,9 +187,12 @@ def cmd_detect(args: argparse.Namespace) -> int:
         claim_mask[nonzero] = brown_mask[nonzero]
         all_objects.extend(brown_objs)
         next_id += len(brown_objs)
+        # Počítadla per kód: porovnáváme proti resolved thin/thick (Slovanka
+        # má "101.0"/"102.0", forest sample "101"/"102").
+        n_thin = sum(1 for o in brown_objs if o.symbol_code == thin_code)
+        n_thick = sum(1 for o in brown_objs if o.symbol_code == thick_code)
         print(f"  brown_line_v1:    {len(brown_objs):>4} objektů "
-              f"({sum(1 for o in brown_objs if o.symbol_code == '101'):>3} × 101, "
-              f"{sum(1 for o in brown_objs if o.symbol_code == '102'):>3} × 102)")
+              f"({n_thin:>3} × {thin_code}, {n_thick:>3} × {thick_code})")
 
         # --- Erosion gully refinement (DISABLED) ---
         # erosion_gully_v1 experimenty (crossing-only, endpoint blob, pointed cap)
@@ -176,24 +210,26 @@ def cmd_detect(args: argparse.Namespace) -> int:
         detect as detect_area,
         DEFAULT_SYMBOL_PER_CATEGORY,
         build_priority_to_area_code,
+        resolve_default_area_code,
     )
     from color_category import ColorCategory
 
     # --- v2 disambiguation setup ---
-    # Pokud user předal --omap, postavíme priority → ISOM kód mapping per
-    # kategorie. Bez --omap zůstává v1 chování (default kód per kategorie).
+    # Library jsme už parsovali výš (pro brown line code resolution). Tady jen
+    # postavíme priority → ISOM kód mapping per kategorie. Bez --omap (library
+    # je None) zůstává v1 chování (default kód per kategorie).
     green_priority_map: dict[int, str] | None = None
     yellow_priority_map: dict[int, str] | None = None
     black_priority_map: dict[int, str] | None = None
-    if args.omap is not None:
-        from omap_parser import parse_omap
+    # Template-aware default kódy (Slovanka "403.0" vs forest sample "403").
+    # None = caller nechá area_v1 použít holý DEFAULT_SYMBOL_PER_CATEGORY.
+    green_default: str | None = None
+    yellow_default: str | None = None
+    black_default: str | None = None
+    if library is not None:
         from color_profile import build_color_profiles
         from color_category import build_category_map_with_overrides
 
-        if not args.omap.exists():
-            print(f"OMAP soubor neexistuje: {args.omap}", file=sys.stderr)
-            return 1
-        library = parse_omap(args.omap)
         profiles = build_color_profiles(library)
         category_map = build_category_map_with_overrides(profiles)
         green_priority_map = build_priority_to_area_code(
@@ -205,9 +241,13 @@ def cmd_detect(args: argparse.Namespace) -> int:
         black_priority_map = build_priority_to_area_code(
             library, ColorCategory.BLACK, category_map,
         )
+        green_default = resolve_default_area_code(library, ColorCategory.GREEN)
+        yellow_default = resolve_default_area_code(library, ColorCategory.YELLOW)
+        black_default = resolve_default_area_code(library, ColorCategory.BLACK)
         print(f"  v2 disambiguation: {len(green_priority_map)} GREEN / "
               f"{len(yellow_priority_map)} YELLOW / {len(black_priority_map)} BLACK "
               f"priorities z {args.omap.name}")
+        print(f"  area defaults:    GREEN={green_default} YELLOW={yellow_default} BLACK={black_default}")
 
     # GREEN areas
     green_codes = {"406", "408", "410"}
@@ -218,6 +258,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
             starting_id=next_id, iteration=args.iter,
             map_orientation_deg=orientation_deg,
             priority_to_code=green_priority_map,
+            default_code=green_default,
         )
         nz = green_mask > 0
         # Konflikt s brown line: jen kde claim_mask je 0 (unclaimed). Brown line
@@ -227,7 +268,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
         all_objects.extend(green_objs)
         next_id += len(green_objs)
         _print_area_breakdown("green_area_v1", green_objs,
-                              default=DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.GREEN])
+                              default=green_default or DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.GREEN])
 
     # YELLOW areas
     yellow_codes = {"401", "403"}
@@ -238,6 +279,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
             starting_id=next_id, iteration=args.iter,
             map_orientation_deg=orientation_deg,
             priority_to_code=yellow_priority_map,
+            default_code=yellow_default,
         )
         nz = yellow_mask > 0
         write_zone = nz & (claim_mask == 0)
@@ -245,7 +287,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
         all_objects.extend(yellow_objs)
         next_id += len(yellow_objs)
         _print_area_breakdown("yellow_area_v1", yellow_objs,
-                              default=DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.YELLOW])
+                              default=yellow_default or DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.YELLOW])
 
     # BLACK areas (526 Building + 527.1 Settlement + 528 OOB).
     # Default 526 — všechny solid black area sdílí priority 1 (AMBIGUOUS),
@@ -259,6 +301,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
             starting_id=next_id, iteration=args.iter,
             map_orientation_deg=orientation_deg,
             priority_to_code=black_priority_map,
+            default_code=black_default,
         )
         nz = black_mask > 0
         write_zone = nz & (claim_mask == 0)
@@ -266,7 +309,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
         all_objects.extend(black_objs)
         next_id += len(black_objs)
         _print_area_breakdown("black_area_v1", black_objs,
-                              default=DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.BLACK])
+                              default=black_default or DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.BLACK])
 
     # Post-filter na --symbols (KISS — detector spustí vše, filter až po).
     # Důvod: detektory budou produkovat víc symbol_codes (101 + 102 z jednoho běhu),
@@ -522,9 +565,19 @@ def cmd_diff(args: argparse.Namespace) -> int:
 
 
 def cmd_export(args: argparse.Namespace) -> int:
-    print("`export` (db2omap) zatím není implementováno — přijde po prvním kompletním pic2db průchodu.",
-          file=sys.stderr)
-    return 1
+    """
+    PoC export DBSnapshot → OMAP XML přes template (viz db2omap.py).
+
+    Hrubá vektorizace (kontury, lineární georef fit) — ukázka "co dovedeme",
+    ne plná Stage 5/7/8.
+    """
+    from db2omap import export as export_omap
+    return export_omap(
+        db_dir=args.out_dir,
+        template_omap=args.template,
+        out_path=args.out,
+        iteration=args.iter,
+    )
 
 
 # --- Argparse setup ---
@@ -585,11 +638,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_diff.set_defaults(func=cmd_diff)
 
     # --- export (stub) ---
-    p_export = sub.add_parser("export", help="db2omap serializace [NOT IMPLEMENTED].")
-    p_export.add_argument("out_dir", type=Path)
+    p_export = sub.add_parser("export", help="db2omap serializace (PoC: kontury + lineární georef).")
+    p_export.add_argument("out_dir", type=Path, help="output/<sample>/ s db/ podadresářem.")
     p_export.add_argument("--to", choices=["omap"], required=True)
-    p_export.add_argument("--out", type=Path, required=True)
-    p_export.add_argument("--iter", type=int, default=None)
+    p_export.add_argument("--template", type=Path, required=True,
+                          help="Template OMAP (zdroj symbols/colors/georef).")
+    p_export.add_argument("--out", type=Path, required=True, help="Výstupní .omap.")
+    p_export.add_argument("--iter", type=int, default=None,
+                          help="Číslo iterace (default = latest dle db/latest.txt).")
     p_export.set_defaults(func=cmd_export)
 
     return parser

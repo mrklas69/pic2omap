@@ -2,6 +2,17 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## Template-aware symbol codes + area RGB-collision fix (sezení 8)
+
+- [x] **Template-aware symbol codes** — `resolve_brown_line_codes(library)` v `brown_line_v1` (regex `^101(\.\d+)?$`, fallback default) + `resolve_default_area_code(library, category)` v `area_v1`. Caller (`pic2db.cmd_detect`) parsuje library jednou, resolvuje a předá kódy jako stringy (detektor nezná omap_model). Slovanka: 101.0/102.0, default 403.0/406.1/526.0. Forest sample beze změny (holé kódy). Blokátor db2omap exportu odstraněn. Memory: `template-aware-symbol-codes`. [2026-05-20 sezení 8]
+- [x] **YELLOW 403.1 "over-detection" = mislabeling** — diagnostika odhalila, že NEjde o over-detection. OMAP má páry s identickou RGB (403.0≡403.1, 401.0≡401.1), color separation je nerozliší, `deduplicate_by_rgb` zahodí jednu priority masku, disambiguace lepila přeživší `.1` variantu (vzácná OOM-custom "upraveno") na vše. Důkaz: 1019 det / 945 GT (403.0+403.1) = 1.08×. Memory: `verify-domain-claims-against-source`, `omap-rgb-collision-variants`. [2026-05-20 sezení 8]
+- [x] **`build_priority_to_area_code` RGB grouping** — seskupuje area symboly podle resolved RGB (`_priority_to_rgb`), ne podle priority indexu. Vybírá základní variantu (`_base_variant` = nejnižší ISOM kód). Ambiguous skupina (víc base shodné barvy) → nejnižší base, ne fallback na cizí barvu. Slovanka: priority 27→403.0 (bylo 403.1), 24→401.0. [2026-05-20 sezení 8]
+- [x] **`area_v1.detect()` + `default_code` param** — template-aware default fallback. Forest sample zlepšení bez regrese: 401 nově rozlišeno (4/6 GT), 406 přesnější (49 vs GT 45, bylo 55). [2026-05-20 sezení 8]
+
+## db2omap PoC export (sezení 8)
+
+- [~] **`db2omap.py` + `pic2db export` verb** — PoC: areas → kontury (`findContours` + `approxPolyDP`), lines → kontura skeletonu, georef = lineární bbox-fit (pixel→OMAP coord, y-flip), symbols/colors/georef z template OMAP (regex injekce `<objects>`). Forest sample: 188/282 obj zapsáno (94 degenerátních), 0 neznámých symbolů (template-aware se vyplatil), validní OMAP (správný namespace). Produkční verze vyžaduje přesnou georef + line path-tracing + Bezier — viz TODO. [2026-05-20 sezení 8]
+
 ## Slovanka2016 Stage 2/3 test (sezení 7)
 
 - [x] **Downscale 143 Mpx → 6.5 Mpx** — Slovanka2016.png (14094×10158) downscaled na 3000 px max dimension (scale 21.3%) jako `resources/Slovanka2016_small.png`. Pragmatický kompromis: zachovává detail orienťáckých symbolů (1.4 m/px), redukuje Stage 2/3 čas. [2026-05-19 sezení 7]

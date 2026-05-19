@@ -2,6 +2,13 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## Per-priority area disambiguation v2 (sezení 7)
+
+- [x] **`area_v1` + `--omap` flag** — per-component priority overlap voting → konkrétní ISOM kód místo default per kategorie. Heuristiky: filter OOM-specific (411.X), sémantický filtr (jen 4XX vegetation pro GREEN/YELLOW), majority threshold 0.50. Forest sample zlepšení: 4× 408 + 3× 404 (= 8 % areas s konkrétním kódem místo default). Memory: priority 10 Green 50% Yellow má UNIQUE mapping na 527 Settlement v OMAP, ale sémantický filtr to správně odmítl. [2026-05-19 sezení 7]
+- [x] **`build_priority_to_area_code`** — helper v `area_v1.py`, extrahuje priority → ISOM kód mapping ze `SymbolLibrary` per ColorCategory. Heuristika filtruje OOM-only kódy (411.X) a sémanticky nekompatibilní (5XX v GREEN). [2026-05-19 sezení 7]
+- [x] **`load_priority_masks`** — načte všechny `priority{NN}_*.png` z Stage 2 výstupu. [2026-05-19 sezení 7]
+- [x] **`pic2db.py --omap` flag** — opt-in v2 disambiguation. Bez flagu zůstává v1 default-per-category chování. [2026-05-19 sezení 7]
+
 ## %AUDIT:CODE + %AUDIT:DOCS (sezení 7)
 
 - [x] **`detection_method` rename** — `brown_line_v1` (bylo `brown_thickness_v1`), `area_v1` (bylo `{cat}_area_v1`). Sjednocuje grep-friendly identifikaci s názvy detektorů. [2026-05-19 sezení 7]

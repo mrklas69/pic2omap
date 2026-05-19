@@ -4,7 +4,7 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 
 ## Stage 4 — Detektory (priority pro další sezení)
 
-- [ ] **Per-priority area disambiguation v2** — pro každou area komponentu zjistit dominantní `priority/priorityNN_*.png` overlap → mapuj `inner_color` na konkrétní ISOM kód (406 vs 408 vs 410, 401 vs 403). Žádný nový detektor, jen vylepšení existujícího `area_v1`. Aktuálně defaultuje na 406 / 403.
+- [ ] **Per-priority area disambiguation v3** — v2 (`area_v1` + `--omap` flag, sezení 7) zlepšil per-symbol klasifikaci 8 % (4× 408 + 3× 404). Limitace: component-level majority threshold (50 %) je moc přísný pro fragmentovanou Stage 3, 410 Opaque Green stále nedetekováno, 408 hodně pod GT. v3: per-pixel priority assignment + split komponenty na sub-areas per dominantní priority. Vyžaduje rework Stage 3 connected components.
 - [ ] **Black area detector (526 Building)** — největší neclaimed area kategorie (50× ve forest sample). Vstup `cat_black_area.png`. Podobné `area_v1`, jen jiná default barva + kód. Plus 527 Settlement (8×) jako varianta.
 - [ ] **Stage 2/3 pipeline na Slovanka2016** — risk: 14094×10158 = 143 Mpx, stage 3 morphology/components by trvalo dlouho. Možnost: downscale na ~3000 px max rozměr pro stage 2/3, full pipeline. Otestuje generalization detektorů na druhou mapu.
 - [~] **109 Erosion gully discrimination v2** — `erosion_gully_v1` (crossing + pointed cap) **odpojen**, 0/17 precision. GT je jen **2 × 109** ve forest sample. Vyžaduje pozici-based check ("leží mezi 101 sousedy" — sample sousedů perpendiculárně k tangentě segmentu). Soubor zůstává jako reference (helpery `crossing_signal`, `pointed_cap_count`). Memory: `erosion-gully-vs-index-contour`.

@@ -64,6 +64,27 @@ def _resolve_db_path(out_dir: Path, iteration: int | None) -> Path:
     return candidates[-1]
 
 
+def _print_area_breakdown(label: str, objs: list, default: str) -> None:
+    """
+    Vypíše souhrn area detekce: kolik komponent v každém ISOM kódu.
+
+    Pokud všechny mají default kód → "(všechny code=DEF)", jinak rozpis.
+    Důvod: po per-priority disambiguation (v2) může jeden běh produkovat
+    víc kódů (406 + 408 + 410), default-only verze (v1) ukáže jen jeden.
+    """
+    from collections import Counter
+    codes = Counter(o.symbol_code for o in objs)
+    if len(codes) == 1 and default in codes:
+        print(f"  {label}:    {len(objs):>4} objektů (všechny code={default})")
+        return
+    # Více kódů — rozpis sortovaný descendingly, default odlišíme suffixem.
+    parts = []
+    for code, cnt in codes.most_common():
+        suffix = " (default)" if code == default else ""
+        parts.append(f"{cnt}× {code}{suffix}")
+    print(f"  {label}:    {len(objs):>4} objektů ({', '.join(parts)})")
+
+
 # --- Verb: detect ---
 
 def cmd_detect(args: argparse.Namespace) -> int:
@@ -147,12 +168,41 @@ def cmd_detect(args: argparse.Namespace) -> int:
         # crossing_signal + pointed_cap_count helpery pro budoucí re-use.
         # Viz memory `erosion-gully-vs-index-contour`.
 
-    # --- Area detector v1 (green + yellow solid fills) ---
+    # --- Area detector v1/v2 (green + yellow solid fills) ---
     # area_v1.detect je parametrizovaný kategorií, voláme 2× per category.
     # Filter logika: aktivovat green pokud bez filtru NEBO filter obsahuje
     # nějaký green code (406/408/410). Yellow analogicky (401/403).
-    from area_v1 import detect as detect_area, DEFAULT_SYMBOL_PER_CATEGORY
+    from area_v1 import (
+        detect as detect_area,
+        DEFAULT_SYMBOL_PER_CATEGORY,
+        build_priority_to_area_code,
+    )
     from color_category import ColorCategory
+
+    # --- v2 disambiguation setup ---
+    # Pokud user předal --omap, postavíme priority → ISOM kód mapping per
+    # kategorie. Bez --omap zůstává v1 chování (default kód per kategorie).
+    green_priority_map: dict[int, str] | None = None
+    yellow_priority_map: dict[int, str] | None = None
+    if args.omap is not None:
+        from omap_parser import parse_omap
+        from color_profile import build_color_profiles
+        from color_category import build_category_map_with_overrides
+
+        if not args.omap.exists():
+            print(f"OMAP soubor neexistuje: {args.omap}", file=sys.stderr)
+            return 1
+        library = parse_omap(args.omap)
+        profiles = build_color_profiles(library)
+        category_map = build_category_map_with_overrides(profiles)
+        green_priority_map = build_priority_to_area_code(
+            library, ColorCategory.GREEN, category_map,
+        )
+        yellow_priority_map = build_priority_to_area_code(
+            library, ColorCategory.YELLOW, category_map,
+        )
+        print(f"  v2 disambiguation: {len(green_priority_map)} GREEN priorities, "
+              f"{len(yellow_priority_map)} YELLOW priorities z {args.omap.name}")
 
     # GREEN areas
     green_codes = {"406", "408", "410"}
@@ -162,6 +212,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
             category=ColorCategory.GREEN,
             starting_id=next_id, iteration=args.iter,
             map_orientation_deg=orientation_deg,
+            priority_to_code=green_priority_map,
         )
         nz = green_mask > 0
         # Konflikt s brown line: jen kde claim_mask je 0 (unclaimed). Brown line
@@ -170,8 +221,8 @@ def cmd_detect(args: argparse.Namespace) -> int:
         claim_mask[write_zone] = green_mask[write_zone]
         all_objects.extend(green_objs)
         next_id += len(green_objs)
-        default = DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.GREEN]
-        print(f"  green_area_v1:    {len(green_objs):>4} objektů (všechny code={default})")
+        _print_area_breakdown("green_area_v1", green_objs,
+                              default=DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.GREEN])
 
     # YELLOW areas
     yellow_codes = {"401", "403"}
@@ -181,14 +232,15 @@ def cmd_detect(args: argparse.Namespace) -> int:
             category=ColorCategory.YELLOW,
             starting_id=next_id, iteration=args.iter,
             map_orientation_deg=orientation_deg,
+            priority_to_code=yellow_priority_map,
         )
         nz = yellow_mask > 0
         write_zone = nz & (claim_mask == 0)
         claim_mask[write_zone] = yellow_mask[write_zone]
         all_objects.extend(yellow_objs)
         next_id += len(yellow_objs)
-        default = DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.YELLOW]
-        print(f"  yellow_area_v1:   {len(yellow_objs):>4} objektů (všechny code={default})")
+        _print_area_breakdown("yellow_area_v1", yellow_objs,
+                              default=DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.YELLOW])
 
     # Post-filter na --symbols (KISS — detector spustí vše, filter až po).
     # Důvod: detektory budou produkovat víc symbol_codes (101 + 102 z jednoho běhu),
@@ -475,6 +527,9 @@ def build_parser() -> argparse.ArgumentParser:
                           help="Výstupní adresář (default output/<image-stem>/).")
     p_detect.add_argument("--symbols", type=str, default=None,
                           help="Omezení detekce na symboly (např. 101,102,103). Skeleton ignoruje.")
+    p_detect.add_argument("--omap", type=Path, default=None,
+                          help="OMAP soubor pro per-priority disambiguation (v2). "
+                               "Bez něj area_v1 fallne na default kód per kategorie.")
     p_detect.set_defaults(func=cmd_detect)
 
     # --- list ---

@@ -16,7 +16,12 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 ## Stage 2 — Doplnění
 
 - [ ] **Map area extraction** — title "Forest map sample" je nad mapou, rozhazuje statistiku. Auto-detekce mapového obdélníku (např. najít největší kompaktní region "non-white"), nebo manuální ROI parametr.
-- [ ] **Ground truth comparison** — skript `compare_to_omap.py`: načte `forest sample.omap`, spočítá objekty per category (vrstevnice = Brown linie 101/102/103) a porovná s pipeline výstupem (kolik connected components v brown mask).
+
+## Ground truth — doladění (compare_to_omap.py)
+
+- [ ] **No-color symbol resolution** — symboly s `inner_color="-1"` a `patterns_count > 0` (Undergrowth 407/409, Distinct vegetation boundary 416, Small erosion gully 110, Small depression 115, …) se přeskakují. V `forest sample.omap` je takových 156 objektů — náš GT je podhodnocený. Rozšířit `symbol_to_color_ref` o čtení barvy z prvního `<pattern>` child elementu, nebo extended parser, který zaznamená pattern barvy do AreaSymbol/LineSymbol.
+- [ ] **Brown line filtering (jen vrstevnice)** — momentálně GT BROWN line=80 obsahuje i 4 Minor road, 4 Earth bank, 2 Erosion gully, 1 Earth wall. Pro Stage 4 vrstevnicový detektor potřebujeme přesnou metriku jen pro 101/102/103 (= 69 objektů). Přidat `--symbols 101,102,103` CLI flag.
+- [ ] **IoU / geometrická metrika** — counts jsou hrubá metrika (oversegmentace skrytá ve fragmentaci). Po Stage 5 (vektorizace) přidat porovnání délek linií v mm a ploch v mm², přepočet OMAP units → pixel via georef.
 
 ## Symbol layer 2 (pro Stage 4)
 
@@ -29,5 +34,5 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 
 ## Otevřené architektonické otázky
 
-- [ ] **Metrika úspěchu pro Fázi 0** — co je "MVP funguje"? IoU per category? Počet vrstevnic detect vs OMAP? Pixel accuracy v overview? Vázáno na definici scope.
+- [~] **Metrika úspěchu pro Fázi 0** — počty objektů per (category, type) implementovány (`compare_to_omap.py`). Slabost: counts jsou hrubé, oversegmentace zkresluje (BROWN line 2.26×). Doplnit IoU / geometrickou metriku po Stage 5.
 - [ ] **Detekce OMAP spec verze** — soubory neuvádějí ISOM 2000 vs 2017-2. Heuristika: měřítko + jména barev + struktura symbolů. Nutné pro pic2omap → výstup s konzistentními kódy.

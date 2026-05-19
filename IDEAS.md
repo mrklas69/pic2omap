@@ -19,7 +19,7 @@ Externí zdroje a existující řešení → viz `RESEARCH.md`.
 |---|-------|-----------|------|
 | 1 | Preprocess (deskew, denoise, normalizace barev) | nízká | ☐ |
 | 2 | Color separation (palette-based, LAB nearest) | střední | **✓** |
-| 3 | Per-color ops (connected components, skeletonizace, pattern detection) | střední | ☐ |
+| 3 | Per-color ops (connected components, skeletonizace, pattern detection) | střední | **✓** (pattern detection odložen do Stage 4) |
 | 4 | **Symbol recognition** (cesta / plot / vrstevnice / balvan / text) | **vysoká** | ☐ |
 | 5 | Vektorizace (skeleton → polyline → Bezier — Schneider 1990) | střední | ☐ |
 | 6 | Topology fix (snap endpoints, close polygons, T-junctions) | střední | ☐ |

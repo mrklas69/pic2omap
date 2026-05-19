@@ -2,14 +2,16 @@
 
 Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDEAS.md`.
 
-## Stage 3 — Per-color raster ops
+## Stage 3 — doladění
 
-Vstup: per-category masky z `output/<image>/category/*.png`.
-Cíl: připravit binární masky k vektorizaci (Stage 5).
+- [ ] **AREA filtrování** — krátké tlusté fragmenty čar (density > 0.5) se schovaly v AREA. Stage 4 bude potřebovat min-size threshold nebo pattern-based filter, aby je odlišil od skutečných ploch.
+- [ ] **Pattern detection (P2)** — `cat_green_area.png` obsahuje šrafu (svislé čárky 412/413). Pattern fill ≠ solid area. Vyžaduje Fourier / autokorelaci nebo line-density detektor. Patří spíš do Stage 4 (symbol recognition).
+- [ ] **Per-DPI škálování thresholdů** — `MIN_AREA=4, POINT_MAX_AREA=30, AREA_MIN_DENSITY=0.5` jsou kalibrované na 631×478 forest sample. Pro jiné rozlišení/DPI škálovat lineárně (nebo přejít na fyzické mm/inch units).
 
-- [ ] **Morfologie** — `morphology.py`: opening/closing pro odstranění šumu (1px artefakty z anti-aliasing po color separation). Per-category nastavení (vrstevnice tolerantnější, plochy agresivnější).
-- [ ] **Connected components** — pro každou category masku rozdělit komponenty na **linky** (poměr stran), **plochy** (kompaktní, velká plocha), **body** (malé, kruhové). Heuristika přes `cv2.connectedComponentsWithStats`.
-- [ ] **Skeletonizace** — pro linky: `skimage.morphology.skeletonize` → 1px středovky. Připravka pro vektorizaci.
+## Stage 4 — Symbol recognition
+
+- [ ] **Vrstevnice (Brown)** — první symbol detector. Vstup: `cat_brown_skeleton.png` (1px středovky). Cíl: rozdělit na 101 Index contour / 102 Contour / 103 Form line podle tloušťky původní čáry a stylu (form line je čárkovaná).
+- [ ] **Bodové symboly** — z `cat_*_point.png` rozpoznat ISOM symboly (boulder 206/207, knoll 109, pit 114) podle tvaru. Šablonové matchingem nebo signaturou (compactness, kruhovitost, dot vs X).
 
 ## Stage 2 — Doplnění
 

@@ -1,0 +1,18 @@
+# ML balíčky pro trénink segmentace ploch (komponenta #3-4 pilotu).
+#
+# ZÁMĚRNĚ oddělené od requirements.txt — běží jen na trénovacím stroji, ne ve
+# vývojovém cv2 prostředí (viz README "Dependencies"). Trénink je na GPU "mrkla",
+# tady (vývoj) jen smoke-test na CPU.
+#
+# Instalace CPU (tady, smoke-test):
+#   python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   python -m pip install segmentation-models-pytorch albumentations
+#
+# Instalace GPU ("mrkla", plný trénink) — torch s CUDA místo CPU buildu, např.:
+#   python -m pip install torch --index-url https://download.pytorch.org/whl/cu124
+#   python -m pip install segmentation-models-pytorch albumentations
+# (verzi CUDA indexu sladit s ovladačem stroje — viz pytorch.org/get-started.)
+
+torch
+segmentation-models-pytorch
+albumentations

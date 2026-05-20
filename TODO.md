@@ -34,6 +34,16 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 - [ ] **Point disambiguace + odebrat body z brown-line** — default jeden kód per kategorie
   (115/536/418) → 419/116/532/540 vždy MISSING. Per-tvar klasifikace. Plus brown-line
   bere body do 101/102 (138 vs 66 GT) — odebrat point pixely z line claimů.
+- [ ] **template_point_v1 — produkční tvarový detektor** (PoC hotový sezení 11) — render
+  tvaru symbolu z OMAP geometrie + diskriminativní match (foreground + forbidden prstenec),
+  vrací top-N kandidátů se skóre. Pro tvarové symboly (536 tower, 537 cross, knolly), kde
+  bucket selhává. PoC: oba posedy top-3 z 226 fragmentů. Generalizovat z `point_template_poc.py`:
+  area/point elementy (zatím jen line), rotace (rotatable symboly), per-symbol konfig.
+  Memory `template-match-point-detection`.
+- [ ] **Vision-ověření kandidátů (hybrid cv2+vision)** — diskriminativní match zúží na ~6
+  kandidátů (100 % recall), ale poslední false positives (roh budovy = lokální T) cv2
+  neodliší. Claude vision (API) ověří zúžené kandidáty dle kontextu — jako bráška. Strop
+  čistého cv2 ~33 % precision na top kandidátech.
 
 ## Stage 4 — Detektory (priority pro další sezení)
 

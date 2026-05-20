@@ -2,6 +2,10 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## Template matching point detektor — PoC (sezení 11)
+
+- [~] **`point_template_poc.py` — diskriminativní template matching** — převzato od jiného Clauda ("bráška" našel 2 posedy 536 vizuálně). Render tvaru symbolu z OMAP geometrie (T = coords čar) + diskriminativní kernel (foreground T kde MÁ být černá, + forbidden prstenec kde MÁ být bílá → penalizuje 537 kříž nad vodorovnou + budovy po stranách), `filter2D`, self-kalibrace měřítka. **Oba posedy spolehlivě top-3 (skóre 0.88/0.84) z 226 bucket fragmentů** → 6 kandidátů, 100 % recall. Strop: roh budovy v písčině (skóre 0.86) se neodliší (izolovanost selže — posed na srázu = velká komponenta). Bráškova vision to zvládla, plain cv2 ne. Zachováno jako PoC/reference. Memory `template-match-point-detection`. [2026-05-20 sezení 11]
+
 ## Point detektor v1 (sezení 11)
 
 - [~] **`point_v1.py` — detektor bodových symbolů** — mirror `area_v1`, `detect(category)` na `cat_<cat>_point.png`, `geometry_type="point"`. Filtr velikostní okno (MIN/MAX_AREA per kategorie) + aspect (vyřadí fragmenty linií). Default brown→115 (depression), black→536 (tower), green→418 (special veg). Záměrně NEfiltruje agresivně tvarem (115 depression je obrys/nízký fill, 116 pit plný). Zapojen v `pic2db.cmd_detect` (po area/line, claimuje jen unclaimed — IDEAS fáze B). Forest: 440 bodů (brown 235, black 58, green 147). **Over-claim 7–34× vs GT (7/4/21)** — point bucket plný fragmentů linií, v1 = odrazový můstek pro ladění (memory `sparse-gt-naive-detector-trap`). Tím se naplnil chybějící třetí Point obrázek (`mark --by-type`). [2026-05-20 sezení 11]

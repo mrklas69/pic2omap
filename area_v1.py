@@ -39,7 +39,7 @@ import numpy as np
 
 from color_category import ColorCategory
 from db_model import MapObject
-from omap_model import NO_COLOR, AreaSymbol, SymbolLibrary, SymbolType
+from omap_model import NO_COLOR, AreaSymbol, CombinedSymbol, SymbolLibrary, SymbolType
 
 
 # Filter parametry pro v1 — kalibrace na forest sample (631×478).
@@ -55,6 +55,13 @@ MIN_AREA_PX_PER_CATEGORY: dict[ColorCategory, int] = {
     # text fragmenty s nepravidelnými tvary. Per-shape filter (Building =
     # obdélníkový, balvan = kruhový) je v3 vylepšení.
     ColorCategory.BLACK: 20,
+    # Gray: budovy (526.1.1 fill, "Black 50-65%") na sprint/urbánních mapách.
+    # Vyšší práh než BLACK — gray bucket je zaplevelený anti-alias lemy kolem
+    # černých prvků (kontury linií, text). Na Garchingu 2020 ploch, ale jen
+    # 273 skutečných budov; nízký práh by lepil "526" na fragmenty (stejná past
+    # jako 154 BLACK fragmentů, viz memory verify-domain-claims-against-source).
+    # Budovy jsou velké polygony → 80 px je bezpečný start (kalibrace na GT 273).
+    ColorCategory.GRAY: 80,
 }
 
 # Density check eliminuje zaplněné protáhlé fragmenty linií (které by jinak
@@ -71,6 +78,8 @@ APPLY_STRIPE_FILTER_PER_CATEGORY: dict[ColorCategory, bool] = {
     # Black: Settlement / Building / OOB jsou kompaktní polygony, ne stripes.
     # Vypnuto.
     ColorCategory.BLACK: False,
+    # Gray: budovy / canopy jsou kompaktní polygony. Vypnuto.
+    ColorCategory.GRAY: False,
 }
 
 # Stripe definice: width ≤ STRIPE_MAX_WIDTH px AND h/w ≥ STRIPE_MIN_ASPECT.
@@ -87,6 +96,10 @@ DEFAULT_SYMBOL_PER_CATEGORY: dict[ColorCategory, str] = {
     # a 528 OOB jsou méně časté, sdílí stejnou priority (priority 1 Black) →
     # disambiguation v2 je nemůže rozlišit (všichni AMBIGUOUS v library).
     ColorCategory.BLACK: "526",
+    # Gray: 526 Building dominuje gray fill na sprint mapách (Garching: 273 budov
+    # vs 11 canopy). Holé "526" v ISSprOM neexistuje — resolve_default_area_code
+    # ho povýší na combined 526.1 (fill + outline, jak OOM kreslí budovy).
+    ColorCategory.GRAY: "526",
 }
 
 # Confidence — solid area detekce je relativně spolehlivá pokud pass density filter.
@@ -136,6 +149,10 @@ ALLOWED_ISOM_PREFIX_PER_CATEGORY: dict[ColorCategory, str] = {
     ColorCategory.GREEN: "4",     # Vegetation only (40X, 41X)
     ColorCategory.YELLOW: "4",    # Vegetation only
     ColorCategory.BLACK: "5",     # Man-made only (52X Buildings, OOB, ...)
+    # Gray: man-made (526 Building, 526.2 Canopy, 519). Bare rock 212 (2XX) tím
+    # vypadne z disambiguace a dostane default building — akceptovatelné, rock
+    # je na sprint mapách vzácný a gray fill ho stejně barevně nerozliší.
+    ColorCategory.GRAY: "5",
     # Až přibyde BROWN area detektor, "1" + některé z "2".
 }
 
@@ -171,6 +188,29 @@ def _code_sort_key(code: str) -> list[int]:
 def _base_variant(codes: list[str]) -> str:
     """Z RGB-skupiny vybere základní variantu (nejnižší kód dle _code_sort_key)."""
     return min(codes, key=_code_sort_key)
+
+
+def _promote_to_combined(library: SymbolLibrary, area_code: str) -> str:
+    """
+    Povýší kód AreaSymbolu na jeho rodičovský CombinedSymbol, pokud existuje.
+
+    V ISSprOM se budova kreslí jako area path se symbolem CombinedSymbolu 526.1
+    (= fill 526.1.1 + outline 526.1.2), ne se samotným area helperem 526.1.1
+    (jehož název říká "Do not use this symbol on its own!"). Objekty v OMAP
+    referencují právě combined → pro věrný export vracíme jeho kód.
+
+    Najde symbol s daným kódem, pak CombinedSymbol, jehož `parts` ho obsahuje
+    (přes symbol id). Vrátí kód toho combinedu. Bez nálezu vrátí původní kód
+    (forest sample "526" / Slovanka "526.0" v žádném combinedu nejsou → beze změny).
+    """
+    target = library.find_by_code(area_code)
+    if target is None:
+        return area_code
+    for sym in library.symbols_by_type(SymbolType.COMBINED):
+        # isinstance pro type narrowing (parts je atribut jen CombinedSymbolu).
+        if isinstance(sym, CombinedSymbol) and target.id in sym.parts:
+            return sym.code
+    return area_code
 
 
 def _priority_to_rgb(library: SymbolLibrary) -> dict[int, tuple[float, float, float]]:
@@ -263,30 +303,53 @@ def build_priority_to_area_code(
         # žlutou 403.0 komponentě plné žluté). Nejnižší base = nejzákladnější
         # symbol té barvy je rozumný kompromis pro v1 (jemné rozlišení uvnitř
         # jedné barvy stejně není z rasteru možné).
-        result[prio] = _base_variant(clean)
+        # _promote_to_combined: area helper uvnitř combinedu (526.1.1) → combined
+        # kód (526.1), pod kterým OMAP budovy reálně kreslí.
+        result[prio] = _promote_to_combined(library, _base_variant(clean))
 
     return result
 
 
-def resolve_default_area_code(library: SymbolLibrary, category: ColorCategory) -> str:
+def resolve_default_area_code(
+    library: SymbolLibrary,
+    category: ColorCategory,
+    category_map: dict[int, ColorCategory] | None = None,
+) -> str:
     """
     Template-aware default kód pro kategorii (fallback když disambiguace selže).
 
     DEFAULT_SYMBOL_PER_CATEGORY drží holé ISOM base ("403", "406", "526"), ale
-    konkrétní OMAP může mít jen suffixované varianty (Slovanka: "403.0", "406.1",
-    "526.0"). Najdeme area symboly matchnuté `^{base}(\\.\\d+)?$` a vrátíme
-    základní variantu. Bez matche (forest sample má holý "403") vrátíme base.
+    konkrétní OMAP může mít jen suffixované varianty:
+        - Slovanka (ISOM): jednoúrovňový suffix "403.0", "406.1", "526.0".
+        - Garching (ISSprOM): dvouúrovňový "526.1.1" (area helper uvnitř
+          combinedu 526.1), holé "526" vůbec neexistuje.
+    Pattern `^{base}(\\.\\d+)*$` chytá libovolný počet suffixů (nula a víc),
+    vybereme základní variantu (nejnižší kód) a `_promote_to_combined` ji případně
+    povýší na rodičovský CombinedSymbol (526.1.1 → 526.1 = jak OMAP kreslí budovy).
+    Bez matche (žádná varianta v library) vrátíme base.
+
+    category_map (priority → kategorie): když je předán, filtruje varianty na ty,
+    jejichž barva spadá do `category`. Nutné kvůli spec-verzním rozdílům — v ISSprOM
+    je 526 (building) GRAY, ne BLACK; bez filtru by BLACK default chybně povýšil na
+    526.1 (budova) a nalepil ji na černé plochy. None = bez filtru (zpětná kompat.).
 
     Stejný princip jako `brown_line_v1.resolve_brown_line_codes` (memory
     `template-aware-symbol-codes`).
     """
     base = DEFAULT_SYMBOL_PER_CATEGORY[category]
-    pattern = re.compile(rf"^{re.escape(base)}(\.\d+)?$")
-    matches = [
-        s.code for s in library.symbols_by_type(SymbolType.AREA)
-        if isinstance(s, AreaSymbol) and pattern.match(s.code)
-    ]
-    return _base_variant(matches) if matches else base
+    pattern = re.compile(rf"^{re.escape(base)}(\.\d+)*$")
+    matches: list[str] = []
+    for s in library.symbols_by_type(SymbolType.AREA):
+        if not isinstance(s, AreaSymbol) or not pattern.match(s.code):
+            continue
+        if category_map is not None:
+            # Barva symbolu (primary inner, fallback secondary) musí padnout do kategorie.
+            ref = s.inner_color_ref if s.inner_color_ref != NO_COLOR else s.secondary_color_ref
+            if ref == NO_COLOR or category_map.get(ref) != category:
+                continue
+        matches.append(s.code)
+    code = _base_variant(matches) if matches else base
+    return _promote_to_combined(library, code)
 
 
 def load_priority_masks(priority_dir: Path) -> dict[int, np.ndarray]:

@@ -399,14 +399,33 @@ def _parse_text_symbol(elem: ET.Element) -> TextSymbol:
 
 def _parse_combined_symbol(elem: ET.Element) -> CombinedSymbol:
     """
-    Combined symbol = kombinace více sub-symbolů. Strukturu zatím neznáme
-    detailně z testovacích dat — uložíme jako prázdný parts seznam a doplníme,
-    až narazíme na konkrétní data. Viz TODO.md.
+    Combined symbol = kombinace více sub-symbolů zobrazených současně.
+
+    Struktura (ISSprOM, např. budova 526.1):
+        <symbol type="16" id="111" code="526.1" name="Building">
+            <combined_symbol parts="2">
+                <part symbol="112"/>   <!-- 526.1.1 area fill -->
+                <part symbol="113"/>   <!-- 526.1.2 line outline -->
+            </combined_symbol>
+        </symbol>
+
+    parts = seznam symbol ID referencí (atribut "symbol" na <part>). Odkazují na
+    samostatné Symbol instance v library (tytéž id jako SymbolBase.id). Někdy je
+    part bez "symbol" atributu (inline definice) — ten přeskočíme (PoC).
     """
+    parts: list[int] = []
+    combined_elem = elem.find(_tag("combined_symbol"))
+    if combined_elem is not None:
+        for part in combined_elem.findall(_tag("part")):
+            # "symbol" atribut = ID referencovaného sub-symbolu. Chybí u inline
+            # definic (PoC: ignorujeme, řešíme jen reference na existující symboly).
+            sym_id = part.get("symbol")
+            if sym_id is not None:
+                parts.append(int(sym_id))
     return CombinedSymbol(
         **_common_symbol_kwargs(elem),
         type=SymbolType.COMBINED,
-        parts=[],  # zatím prázdné
+        parts=parts,
     )
 
 

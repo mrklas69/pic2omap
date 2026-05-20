@@ -118,6 +118,29 @@ U-Net / DeepLab segmentace per-pixel → symbol class.
 - **Fáze 2**: Symbol recognition pro **jeden** dominantní typ — vrstevnice (hnědá, plynulé čáry, vysoká hustota).
 - **Fáze 3**: ML přístup (B) jen pokud Fáze 2 narazí na strop heuristik.
 
+## Milník v1 + review-driven detekce (Sezení 11)
+
+Strategický obrat. Sezení 8-10 stavěla export / georef / gray budovy (= kroky 5-7),
+ale empirie z forest sample odhalila slabý **základ v kroku 4 (rozpoznání)**:
+
+- vrstevnice 101+102 detekováno **138×** vs GT **66×** (2,1× over);
+- **žádný bodový detektor** (`geometry_type` jen area/line) → hnědé body 112/113/115/116
+  padají do brown-line bucketu a vycházejí jako falešné vrstevnice;
+- pokryto ~9 kódů z ~30 forest symbolů.
+
+Betonovali jsme střechu na nedodělaných základech (porušení *first things first*).
+
+### Rozhodnutí
+
+- **Milník v1 = "lesní core"**: vrstevnice (101/102) + plochy (green/yellow/black) +
+  budovy — PŘESNĚ (ratio ~1×, správné kódy). Bodové a pattern symboly až potom.
+  (Zodpovídá dříve otevřenou Fázi 0 "definovat scope".)
+- **Export (krok 7) zamražen**; count-only metrika (krok 8) povýšena na stálou
+  **per-symbol DB↔OMAP validaci**. OMAP = správné řešení k PNG; ověřovat VŽDY.
+- **Mapař v smyčce jako oponent**: review nástroj (3 obrázky point/line/area s ID +
+  per-symbol tabulka GT vs detekováno) → uživatel oponuje per-objekt → iterace detekce.
+  Forma: 3 obrázky per `geometry_type` + `--symbols` filtr pro hustá místa.
+
 ## Otevřené otázky
 
 ### Zodpovězeno

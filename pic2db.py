@@ -221,11 +221,13 @@ def cmd_detect(args: argparse.Namespace) -> int:
     green_priority_map: dict[int, str] | None = None
     yellow_priority_map: dict[int, str] | None = None
     black_priority_map: dict[int, str] | None = None
+    gray_priority_map: dict[int, str] | None = None
     # Template-aware default kódy (Slovanka "403.0" vs forest sample "403").
     # None = caller nechá area_v1 použít holý DEFAULT_SYMBOL_PER_CATEGORY.
     green_default: str | None = None
     yellow_default: str | None = None
     black_default: str | None = None
+    gray_default: str | None = None
     if library is not None:
         from color_profile import build_color_profiles
         from color_category import build_category_map_with_overrides
@@ -241,13 +243,18 @@ def cmd_detect(args: argparse.Namespace) -> int:
         black_priority_map = build_priority_to_area_code(
             library, ColorCategory.BLACK, category_map,
         )
-        green_default = resolve_default_area_code(library, ColorCategory.GREEN)
-        yellow_default = resolve_default_area_code(library, ColorCategory.YELLOW)
-        black_default = resolve_default_area_code(library, ColorCategory.BLACK)
+        gray_priority_map = build_priority_to_area_code(
+            library, ColorCategory.GRAY, category_map,
+        )
+        green_default = resolve_default_area_code(library, ColorCategory.GREEN, category_map)
+        yellow_default = resolve_default_area_code(library, ColorCategory.YELLOW, category_map)
+        black_default = resolve_default_area_code(library, ColorCategory.BLACK, category_map)
+        gray_default = resolve_default_area_code(library, ColorCategory.GRAY, category_map)
         print(f"  v2 disambiguation: {len(green_priority_map)} GREEN / "
-              f"{len(yellow_priority_map)} YELLOW / {len(black_priority_map)} BLACK "
-              f"priorities z {args.omap.name}")
-        print(f"  area defaults:    GREEN={green_default} YELLOW={yellow_default} BLACK={black_default}")
+              f"{len(yellow_priority_map)} YELLOW / {len(black_priority_map)} BLACK / "
+              f"{len(gray_priority_map)} GRAY priorities z {args.omap.name}")
+        print(f"  area defaults:    GREEN={green_default} YELLOW={yellow_default} "
+              f"BLACK={black_default} GRAY={gray_default}")
 
     # GREEN areas
     green_codes = {"406", "408", "410"}
@@ -310,6 +317,29 @@ def cmd_detect(args: argparse.Namespace) -> int:
         next_id += len(black_objs)
         _print_area_breakdown("black_area_v1", black_objs,
                               default=black_default or DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.BLACK])
+
+    # GRAY areas (526 Building dominuje na sprint/urbánních mapách).
+    # Gray = "Black 50-65%" fill budov (526.1.1), "Black 20%" canopy (526.2.1),
+    # bare rock (212). Disambiguace prio 6 → budova, prio 9 → canopy; default
+    # 526 → resolve povýší na combined 526.1. Vyšší MIN_AREA odfiltruje
+    # anti-alias gray lemy kolem černých prvků (viz area_v1 komentář).
+    gray_codes = {"526", "526.1", "526.2", "212"}
+    if symbols_filter is None or symbols_filter & gray_codes:
+        gray_objs, gray_mask = detect_area(
+            out_dir=out_dir, image_shape=(h, w),
+            category=ColorCategory.GRAY,
+            starting_id=next_id, iteration=args.iter,
+            map_orientation_deg=orientation_deg,
+            priority_to_code=gray_priority_map,
+            default_code=gray_default,
+        )
+        nz = gray_mask > 0
+        write_zone = nz & (claim_mask == 0)
+        claim_mask[write_zone] = gray_mask[write_zone]
+        all_objects.extend(gray_objs)
+        next_id += len(gray_objs)
+        _print_area_breakdown("gray_area_v1", gray_objs,
+                              default=gray_default or DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.GRAY])
 
     # Post-filter na --symbols (KISS — detector spustí vše, filter až po).
     # Důvod: detektory budou produkovat víc symbol_codes (101 + 102 z jednoho běhu),

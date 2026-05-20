@@ -341,6 +341,28 @@ def cmd_detect(args: argparse.Namespace) -> int:
         _print_area_breakdown("gray_area_v1", gray_objs,
                               default=gray_default or DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.GRAY])
 
+    # --- Point detector v1 (bodové symboly) ---
+    # Běží PO area/line: body jsou nejmenší a nejvíc šum-podobné (IDEAS fáze B),
+    # claimují jen unclaimed pixely. Point bucket je silně zašuměný → v1 over-claimuje
+    # (memory sparse-gt-naive-detector-trap), slouží jako odrazový můstek pro ladění.
+    from point_v1 import DEFAULT_SYMBOL_PER_CATEGORY as POINT_DEFAULTS
+    from point_v1 import detect as detect_point
+
+    point_codes = {"112", "113", "115", "116", "536", "532", "540", "418", "419"}
+    if symbols_filter is None or symbols_filter & point_codes:
+        for pcat in (ColorCategory.BROWN, ColorCategory.BLACK, ColorCategory.GREEN):
+            pt_objs, pt_mask = detect_point(
+                out_dir=out_dir, image_shape=(h, w),
+                category=pcat, starting_id=next_id, iteration=args.iter,
+            )
+            nz = pt_mask > 0
+            write_zone = nz & (claim_mask == 0)
+            claim_mask[write_zone] = pt_mask[write_zone]
+            all_objects.extend(pt_objs)
+            next_id += len(pt_objs)
+            print(f"  point_v1 {pcat.value:6}: {len(pt_objs):>4} objektů "
+                  f"(default {POINT_DEFAULTS[pcat]})")
+
     # Post-filter na --symbols (KISS — detector spustí vše, filter až po).
     # Důvod: detektory budou produkovat víc symbol_codes (101 + 102 z jednoho běhu),
     # filtrovat per-detector dělá API složitější. Filter na konci je 1 řádek.

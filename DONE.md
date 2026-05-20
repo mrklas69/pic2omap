@@ -2,6 +2,10 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## Point detektor v1 (sezení 11)
+
+- [~] **`point_v1.py` — detektor bodových symbolů** — mirror `area_v1`, `detect(category)` na `cat_<cat>_point.png`, `geometry_type="point"`. Filtr velikostní okno (MIN/MAX_AREA per kategorie) + aspect (vyřadí fragmenty linií). Default brown→115 (depression), black→536 (tower), green→418 (special veg). Záměrně NEfiltruje agresivně tvarem (115 depression je obrys/nízký fill, 116 pit plný). Zapojen v `pic2db.cmd_detect` (po area/line, claimuje jen unclaimed — IDEAS fáze B). Forest: 440 bodů (brown 235, black 58, green 147). **Over-claim 7–34× vs GT (7/4/21)** — point bucket plný fragmentů linií, v1 = odrazový můstek pro ladění (memory `sparse-gt-naive-detector-trap`). Tím se naplnil chybějící třetí Point obrázek (`mark --by-type`). [2026-05-20 sezení 11]
+
 ## Review nástroj + georef zjištění (sezení 11)
 
 - [x] **`mark` review overlay** — `cmd_mark` (byl funkční stub) rozšířen: `--by-type` (3 obrázky per geometry_type point/line/area na ztlumeném originálu, `_render_mark_overlay` helper), `--scale N` (upscale + úměrný font pro čitelnost ID na malých renderech — forest 631px nečitelný při font 0.2). ID v centroidu, barva per symbol_code, `--symbols` filtr. [2026-05-20 sezení 11]

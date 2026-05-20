@@ -23,9 +23,17 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 - [ ] **Brown-line precision audit (138 vs 66 GT)** — proč 2,1× over. Mix mislabeled
   hnědých bodů (115/116/112/113 nemají point detektor) + over-segmentace vrstevnic.
   Po review identifikovat, kolik je čeho.
-- [ ] **Point detektor (hnědé body) — PO milníku v1** — 112 Small knoll, 113 Elongated
-  knoll, 115 Small depression, 116 Pit. Nový `geometry_type="point"`. SOUČASNĚ odebrat
-  body z brown-line claimů. Sparse GT past (memory `sparse-gt-naive-detector-trap`).
+- [x] **Point detektor v1** (sezení 11) — `point_v1.py` (mirror area_v1), `geometry_type=
+  "point"`, brown/black/green kategorie, filtr velikost + aspect, default 115/536/418.
+  Zapojen v `pic2db` (po area, claimuje unclaimed). Tři obrázky point/line/area hotové. → DONE.
+- [ ] **Point detektor v2 — redukce over-claim** — v1 over-claimuje 7–34× (forest brown
+  235 vs GT 7, black 58 vs 4, green 147 vs 21): point bucket plný fragmentů linií. Potřebuje:
+  (a) **izolovanost** — komponenta sousedící s line/area claim_mask = odříznutý fragment,
+  ne bod; (b) **tvarová disambiguace** per symbol (115 oblouk / 116 plný / 112 tečka);
+  (c) per-objekt GT matching pro kalibraci prahů (= přesný georef). Memory `sparse-gt-naive-detector-trap`.
+- [ ] **Point disambiguace + odebrat body z brown-line** — default jeden kód per kategorie
+  (115/536/418) → 419/116/532/540 vždy MISSING. Per-tvar klasifikace. Plus brown-line
+  bere body do 101/102 (138 vs 66 GT) — odebrat point pixely z line claimů.
 
 ## Stage 4 — Detektory (priority pro další sezení)
 

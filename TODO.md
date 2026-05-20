@@ -25,13 +25,18 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 ## DB infrastruktura
 
 - [ ] **`diff` verb (pic2db.py)** — implementovat porovnání dvou iter_N.json. Vyžaduje persistent ID matching přes IoU bbox + symbol_code (zatím schema-only).
-- [~] **`export` verb (db2omap)** — PoC hotový (sezení 8): `db2omap.py`, areas →
-  kontury, lines → kontura skeletonu, georef = lineární bbox-fit, symbols/colors
-  z template. Forest sample: 188/282 obj, validní OMAP. Co zbývá do produkční verze:
-  - **Přesná georef** — bbox-fit roztahuje (mapa nezabírá celý PNG). Potřebuje DPI / `.pgw` affine + Slovanka declination.
-  - **Line vektorizace path-tracing** — vrstevnice teď jako kontura skeletonu (zdvojená smyčka). Skeleton → polyline středem (graph traversal).
-  - **Bezier fit** — OOM používá kubické Beziery, ne polyline (Schneider fit).
-  - **94 degenerátních objektů** přeskočeno (< 3 body) — drobné line segmenty.
+- [~] **`export` verb (db2omap)** — PoC + georef + line vektorizace hotové. Hotovo:
+  areas → kontury, **rigorózní georef** (sezení 9: `.pgw` + OMAP georef, pixel→coord
+  bez rotace, ověřeno 4×; bbox-fit fallback pro Local CRS), **line segment-trace**
+  (sezení 9: kostra jako graf, každá hrana → path, neztrácí délku). Slovanka 5968 obj,
+  forest 451 obj. Co zbývá do produkční verze:
+  - **Bezier fit** — OOM používá kubické Beziery, ne polyline (Schneider fit). Nahradit
+    approxPolyDP polyline za Bezier segmenty s flagy v `<coords>`.
+  - **Re-linking fragmentů** — vrstevnice silně fragmentované (median 16 px) kvůli
+    mid-symbol/černým překryvům. Spojit co-linear sousední segmenty (fáze B re-link).
+  - **L-roh merge** — segment-trace seká v 8-souvislých rozích (32 segmentů u obj 1864).
+    Sloučit segmenty pokračující přímo přes deg-3 roh (straightest continuation).
+  - **1:10000 vs scale=15000** — ověřit Slovanka měřítko (titulek vs OMAP georef/`.pgw`).
 - [ ] **Multi-iter podpora** — re-link iterace fáze B: po point detection re-evaluovat fragmentované linie. Vyžaduje matching MapObject napříč iteracemi.
 
 ## Stage 2/3 — Cleanup

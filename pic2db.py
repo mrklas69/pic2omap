@@ -577,6 +577,8 @@ def cmd_export(args: argparse.Namespace) -> int:
         template_omap=args.template,
         out_path=args.out,
         iteration=args.iter,
+        pgw_path=args.pgw,
+        pgw_width=args.pgw_width,
     )
 
 
@@ -646,6 +648,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_export.add_argument("--out", type=Path, required=True, help="Výstupní .omap.")
     p_export.add_argument("--iter", type=int, default=None,
                           help="Číslo iterace (default = latest dle db/latest.txt).")
+    p_export.add_argument("--pgw", type=Path, default=None,
+                          help="World file (.pgw) pro rigorózní georef. "
+                               "Bez něj fallback na bbox-fit (lineární, anizotropní).")
+    p_export.add_argument("--pgw-width", type=int, default=None,
+                          help="Šířka PNG v px, ke kterému .pgw patří (typicky plný "
+                               "export). Default = šířka claim masky (k=1, beze škálování).")
     p_export.set_defaults(func=cmd_export)
 
     return parser

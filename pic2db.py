@@ -443,8 +443,93 @@ def cmd_list(args: argparse.Namespace) -> int:
     return 0
 
 
-# --- Verb stuby: mark / diff / export ---
-# Implementace přijde až bude reálný detektor produkovat objekty do DB.
+# --- Verb: mark (vizuální review overlay) ---
+
+# Stabilní paleta BGR pro barvení per symbol_code (cyklická).
+_MARK_PALETTE = [
+    (0, 0, 255),       # red
+    (0, 255, 0),       # green
+    (255, 0, 0),       # blue
+    (0, 255, 255),     # yellow
+    (255, 0, 255),     # magenta
+    (255, 255, 0),     # cyan
+    (0, 128, 255),     # orange
+    (128, 0, 255),     # purple-ish
+]
+
+
+def _render_mark_overlay(
+    objs: list,
+    claim_mask,
+    background,
+    with_ids: bool,
+    dim_background: bool,
+    scale: int = 1,
+):
+    """
+    Vyrenderuje overlay zadaných objektů přes background.
+
+    Args:
+        objs: podmnožina MapObject k vykreslení (už filtrovaná callerem).
+        claim_mask: uint16 maska (pixel = MapObject.id).
+        background: BGR obraz pozadí (originál nebo bílá).
+        with_ids: vykreslit ID objektu v centroidu (annotate_with_ids).
+        dim_background: ztlumit pozadí k bílé (review — ať detekce vyniknou,
+            ale kontext mapy zůstane viditelný).
+        scale: upscale faktor pro čitelnost ID na malých renderech. NEAREST na
+            masce zachová ID hodnoty, font roste úměrně.
+
+    Vrací (out_image, symbol_to_color).
+    """
+    import cv2
+    import numpy as np
+
+    from peak_visualizer import annotate_with_ids, dilate_for_visibility
+
+    # Upscale pro čitelnost: background bilineárně, mask NEAREST (zachová ID čísla).
+    if scale > 1:
+        background = cv2.resize(background, None, fx=scale, fy=scale,
+                                interpolation=cv2.INTER_LINEAR)
+        claim_mask = cv2.resize(claim_mask, None, fx=scale, fy=scale,
+                                interpolation=cv2.INTER_NEAREST)
+
+    # Stabilní barva per symbol_code (pořadí prvního výskytu → reproducible).
+    symbol_to_color: dict[str, tuple[int, int, int]] = {}
+    for o in objs:
+        if o.symbol_code not in symbol_to_color:
+            symbol_to_color[o.symbol_code] = _MARK_PALETTE[len(symbol_to_color) % len(_MARK_PALETTE)]
+
+    out = background.copy()
+    # Ztlumení: blend k bílé (0.4·orig + 0.6·255) — mapa zůstane čitelná jako
+    # kontext, ale detekované objekty na ní jasně vyniknou.
+    if dim_background:
+        out = (out.astype(np.float32) * 0.4 + 255 * 0.6).astype(np.uint8)
+
+    alpha = 0.85
+    # Per symbol_code skupina ID — barvíme jednotnou barvou + dilatujeme spolu.
+    by_symbol: dict[str, list[int]] = {}
+    for o in objs:
+        by_symbol.setdefault(o.symbol_code, []).append(o.id)
+    for symbol_code, ids in by_symbol.items():
+        # np.isin vektorizovaně vybere pixely těchto ID z claim_mask.
+        symbol_mask = np.isin(claim_mask, ids).astype(np.uint8) * 255
+        # Skeleton/tenké linie jsou 1px → dilatace pro viditelnost.
+        dilated = dilate_for_visibility(symbol_mask)
+        bool_mask = dilated > 0
+        color = np.array(symbol_to_color[symbol_code], dtype=np.float32)
+        out[bool_mask] = ((1 - alpha) * out[bool_mask] + alpha * color).astype(np.uint8)
+
+    if with_ids:
+        # claim_mask má pixel = ID; annotate vykreslí číslo do centroidu každého ID.
+        # Font roste s upscale faktorem, ať je čitelný (0.2 native bylo nečitelné).
+        labels_int32 = claim_mask.astype(np.int32)
+        out = annotate_with_ids(
+            out, labels_int32, [o.id for o in objs],
+            font_scale=0.2 * scale, font_thickness=max(1, scale - 1),
+        )
+
+    return out, symbol_to_color
+
 
 def cmd_mark(args: argparse.Namespace) -> int:
     """
@@ -512,79 +597,51 @@ def cmd_mark(args: argparse.Namespace) -> int:
         # Bílá plocha — pro debug bez originálu.
         background = np.ones((h, w, 3), dtype=np.uint8) * 255
 
-    # --- Barvy per symbol_code ---
-    # Stabilní mapping: každý unikátní symbol_code → index do palety v pořadí
-    # prvního výskytu v objs. Pro reproducible výstup.
-    palette = [
-        (0, 0, 255),       # BGR red
-        (0, 255, 0),       # green
-        (255, 0, 0),       # blue
-        (0, 255, 255),     # yellow
-        (255, 0, 255),     # magenta
-        (255, 255, 0),     # cyan
-        (0, 128, 255),     # orange
-        (128, 0, 255),     # purple-ish
-    ]
-    symbol_to_color: dict[str, tuple[int, int, int]] = {}
-    for o in objs:
-        if o.symbol_code not in symbol_to_color:
-            # Cyklicky přes paletu, kdyby symbol_codes > len(palette).
-            symbol_to_color[o.symbol_code] = palette[len(symbol_to_color) % len(palette)]
-
-    # --- Render overlay ---
-    out = background.copy()
-    alpha = 0.85
-
-    # Set kept IDs pro rychlý check.
-    kept_ids = {o.id for o in objs}
-    # Restrict claim_mask jen na kept_ids — ostatní budou ignorovány.
-    # Pro každý symbol_code samostatně, ať můžeme dilatovat skupinu a barvit jednotnou barvou.
-    by_symbol: dict[str, list[int]] = {}
-    for o in objs:
-        by_symbol.setdefault(o.symbol_code, []).append(o.id)
-
-    for symbol_code, ids in by_symbol.items():
-        # Bool mask všech pixelů patřících tomuto symbol_code.
-        # np.isin je vektorizovaná — rychlejší než smyčka pro velký claim_mask.
-        symbol_mask = np.isin(claim_mask, ids).astype(np.uint8) * 255
-        # Skeleton je 1px → bez dilatace špatně vidět. dilate_for_visibility = 3×3 kernel.
-        dilated = dilate_for_visibility(symbol_mask)
-        bool_mask = dilated > 0
-        color = np.array(symbol_to_color[symbol_code], dtype=np.float32)
-        # Alpha blend: new = (1-α)·orig + α·color
-        out[bool_mask] = ((1 - alpha) * out[bool_mask] + alpha * color).astype(np.uint8)
-
-    # --- ID popisky ---
-    if args.with_ids:
-        # annotate_with_ids potřebuje labels image (int) + list label IDs.
-        # claim_mask má pixel = MapObject.id; přesně to chceme.
-        # Cast na int32 (annotate používá np.where pro centroidy, int dtype požaduje).
-        labels_int32 = claim_mask.astype(np.int32)
-        out = annotate_with_ids(out, labels_int32, [o.id for o in objs])
-
-    # --- Output path ---
-    # Schema: mark_iter_<N>[_<sorted-symbols>][_ids].png
-    parts = [f"mark_iter_{iteration}"]
-    if symbols_filter:
-        parts.append("_".join(sorted(symbols_filter)))
-    if args.with_ids:
-        parts.append("ids")
-    output_name = "_".join(parts) + ".png"
-
+    # --- Render: 1 obrázek (default) nebo 3 per geometry_type (--by-type) ---
     marks_dir = args.out_dir / "marks"
     marks_dir.mkdir(parents=True, exist_ok=True)
-    output_path = marks_dir / output_name
-    cv2.imwrite(str(output_path), out)
 
-    # --- Report ---
-    print(f"=== Mark: {output_path} ===")
-    print(f"Iter: {iteration}, objektů: {len(objs)}")
-    print()
-    print("Barvy per symbol_code (BGR):")
-    for code, color in symbol_to_color.items():
-        count = sum(1 for o in objs if o.symbol_code == code)
-        print(f"  {code:<6}  BGR{color}  ({count} objektů)")
+    # Skupiny k vykreslení: (type_suffix, podmnožina objs). Default = vše v jednom.
+    # --by-type → 3 obrázky (point/line/area) na ztlumeném pozadí (review mód).
+    if args.by_type:
+        groups = [(t, [o for o in objs if o.geometry_type == t])
+                  for t in ("point", "line", "area")]
+        dim = True
+    else:
+        groups = [(None, objs)]
+        dim = False
 
+    written = 0
+    for type_suffix, group_objs in groups:
+        if not group_objs:
+            if type_suffix:
+                print(f"  (přeskočeno {type_suffix}: 0 objektů)")
+            continue
+        out_img, symbol_to_color = _render_mark_overlay(
+            group_objs, claim_mask, background, args.with_ids, dim, args.scale,
+        )
+        # Output name: mark_iter_<N>[_<type>][_<filter>][_ids].png
+        parts = [f"mark_iter_{iteration}"]
+        if type_suffix:
+            parts.append(type_suffix)
+        if symbols_filter:
+            parts.append("_".join(sorted(symbols_filter)))
+        if args.with_ids:
+            parts.append("ids")
+        output_path = marks_dir / ("_".join(parts) + ".png")
+        cv2.imwrite(str(output_path), out_img)
+        written += 1
+
+        # Report per obrázek.
+        label = type_suffix or "vše"
+        print(f"=== Mark [{label}]: {output_path} ({len(group_objs)} objektů) ===")
+        for code, color in symbol_to_color.items():
+            count = sum(1 for o in group_objs if o.symbol_code == code)
+            print(f"  {code:<8}  BGR{color}  ({count}×)")
+
+    if written == 0:
+        print("Žádné objekty k vykreslení.", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -652,14 +709,20 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Filtr na symboly (např. 204,205).")
     p_list.set_defaults(func=cmd_list)
 
-    # --- mark (stub) ---
-    p_mark = sub.add_parser("mark", help="Overlay objektů přes background [NOT IMPLEMENTED].")
+    # --- mark (review overlay) ---
+    p_mark = sub.add_parser("mark", help="Vizuální overlay objektů přes originál (review).")
     p_mark.add_argument("out_dir", type=Path)
     p_mark.add_argument("--iter", type=int, default=None)
     p_mark.add_argument("--symbols", type=str, default=None)
     p_mark.add_argument("--background", type=Path, default=None)
     p_mark.add_argument("--with-ids", action="store_true",
                         help="Přidá ID popisky (font_scale=0.2).")
+    p_mark.add_argument("--by-type", action="store_true",
+                        help="3 obrázky per geometry_type (point/line/area) na "
+                             "ztlumeném pozadí — review mód pro kontrolu detekce.")
+    p_mark.add_argument("--scale", type=int, default=1,
+                        help="Upscale faktor výstupu pro čitelnost ID na malých "
+                             "renderech (např. 3 pro forest sample 631px).")
     p_mark.set_defaults(func=cmd_mark)
 
     # --- diff (stub) ---

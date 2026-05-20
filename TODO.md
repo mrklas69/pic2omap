@@ -8,12 +8,18 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 > budovy přesně (ratio ~1×, správné kódy). Bodové/pattern symboly až potom.
 > Export (krok 7) zamražen. Detail: `IDEAS.md` "Milník v1".
 
-- [ ] **Review nástroj (mark + per-symbol tabulka)** — aby mapař mohl oponovat detekci.
-  - `mark` verb (dnes stub): overlay `claim_mask` na ztlumený originál, 3 obrázky dělené
-    podle `geometry_type` (point/line/area), ID objektu v centroidu bbox. `--symbols`
-    filtr pro hustá místa (138 linií přes sebe).
-  - `compare_to_omap`: rozšířit na per-symbol tabulku `kód | název | GT | detekováno |
-    ratio | status`. Stálá DB↔OMAP metrika, ne koncový krok.
+- [x] **Review nástroj (mark + per-symbol tabulka + CSV)** (sezení 11) — `mark --by-type`
+  (3 obrázky point/line/area), `--scale N` (čitelné ID), `--with-ids`. `compare_to_omap
+  --db` (per-symbol tabulka kód|název|GT|DB|ratio|status) + `--csv-dir` (review_suma.csv,
+  review_gt.csv = GT objekty z OMAP, review_detail.csv = naše detekce). → DONE.
+- [ ] **Per-objekt matching GT↔DB** — zkoušeno (sezení 11), odloženo. Nearest-centroid
+  produkoval >90 % falešných párů: forest nemá přesný georef (bbox-fit), Garching `.pgw`
+  je jen ~5mm přesný (jen 15 % budov sedí do své velikosti). Potřebuje (a) přesný georef,
+  (b) odfiltrovat legendu z `.omap` GT, (c) možná IoU overlap místo centroidu. Bez něj
+  se GT (coord) a naše (raster) pozice 1:1 neslícují.
+- [ ] **Georef přesnost `.pgw`** — Garching `.pgw` ~5mm nepřesný vůči rasteru (ne flip,
+  ne konstantní offset — spíš rotace/scale/origin). Bbox shoda (sezení 10) je slepá.
+  Diagnostikovat; opraví i export (krok 7). Souvisí s memory `georef-paper-space-not-world`.
 - [ ] **Brown-line precision audit (138 vs 66 GT)** — proč 2,1× over. Mix mislabeled
   hnědých bodů (115/116/112/113 nemají point detektor) + over-segmentace vrstevnic.
   Po review identifikovat, kolik je čeho.

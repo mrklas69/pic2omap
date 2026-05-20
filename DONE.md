@@ -2,6 +2,13 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## Review nástroj + georef zjištění (sezení 11)
+
+- [x] **`mark` review overlay** — `cmd_mark` (byl funkční stub) rozšířen: `--by-type` (3 obrázky per geometry_type point/line/area na ztlumeném originálu, `_render_mark_overlay` helper), `--scale N` (upscale + úměrný font pro čitelnost ID na malých renderech — forest 631px nečitelný při font 0.2). ID v centroidu, barva per symbol_code, `--symbols` filtr. [2026-05-20 sezení 11]
+- [x] **`compare_to_omap --db` per-symbol tabulka** — GT (z OMAP) vs DB counts per ISOM kód: `kód | název | GT | DB | ratio | status` (OK/OVER/UNDER/MISSING/EXTRA). Stálá DB↔OMAP metrika kroku 4, ne koncový krok. Forest: OK=3 OVER=2 (101 2.2×, 102 1.7×) UNDER=4 MISSING=28 z 37 symbolů. [2026-05-20 sezení 11]
+- [x] **`--csv-dir` review CSV export** — `review_suma.csv` (per kód), `review_gt.csv` (všech 539 GT objektů z OMAP s pozicí, coord systém), `review_detail.csv` (naše detekce, raster systém). encoding utf-8-sig (Excel diakritika), xLoc/yLoc 0-10 origin vlevo-dole. [2026-05-20 sezení 11]
+- [~] **Per-objekt matching GT↔DB (zkoušeno, odloženo)** — nearest-centroid v OMAP coord. Odhalil, že georef je nepřesný: forest bbox-fit hrubý, Garching `.pgw` ~5mm (jen 15 % budov sedí do své velikosti, 90 %+ falešných párů). NENÍ y-flip (unáhlený závěr opraven — coord zrcadlení byla náhoda, budovy kolem coord y=0). Matching odstraněn, → TODO (potřebuje přesný georef + legenda filtr). Memory `verify-domain-claims-against-source`. [2026-05-20 sezení 11]
+
 ## Gray budovy + ISSprOM combined kódy (sezení 11)
 
 - [x] **GRAY area detektor (budovy)** — `area_v1` rozšířen o `ColorCategory.GRAY` (4 per-category dicty: MIN_AREA_PX=80, stripe filter off, default "526", ISOM prefix "5"), `pic2db.cmd_detect` GRAY blok (4. kopie vzoru, per-priority disambiguace izomorfní s BLACK). Garching: **241 budov** (gray fill color 6 "Black 50-65%"), median 1297 px = velké plochy. Recall ~241/273 GT = 88 %. MIN_AREA=80 odfiltroval anti-alias lemy kolem černých prvků. Forest/Slovanka: 0 gray ploch (no-op, žádná regrese). Memory: `verify-domain-claims-against-source`. [2026-05-20 sezení 11]

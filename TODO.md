@@ -13,6 +13,8 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 - [~] **109 Erosion gully discrimination v2** — `erosion_gully_v1` (crossing + pointed cap) **odpojen**, 0/17 precision. GT je jen **2 × 109** ve forest sample. Vyžaduje pozici-based check ("leží mezi 101 sousedy" — sample sousedů perpendiculárně k tangentě segmentu). Soubor zůstává jako reference (helpery `crossing_signal`, `pointed_cap_count`). Memory: `erosion-gully-vs-index-contour`.
 - [~] **103 Form line v2** — `form_line_v1` (co-linear pair heuristika) odpojeno (20/3 = 6.7× over-claim). Sparse GT pattern stejný jako 109 erosion gully. v2 vyžaduje pozici-based check (sekvence ≥ 3 co-linear dashů s pravidelnými gaps) nebo multi-sample validation. Memory: `sparse-gt-naive-detector-trap`.
 - [ ] **110 Small erosion gully** — `line_width=0` + `mid_symbol` Brown tečka. 16× ve forest sample. Patří do **point/dot detectoru** (sequence clustering), ne brown line. Budoucí `brown_dot_v1`.
+- [ ] **gray (budovy) area detektor** — `gray` kategorie (Black 50-65% for buildings) na Garchingu = 2020 ploch / 836k px, ale nemá detektor (pokrýváme brown_line + green/yellow/black_area). Pro sprint/urbánní mapy dominantní obsah. Mirror area_v1 BLACK extension (`MIN_AREA_PX_PER_CATEGORY`, `DEFAULT_SYMBOL_PER_CATEGORY`, `ALLOWED_ISOM_PREFIX`). Odhaleno sezení 10 (3. pár).
+- [ ] **ISSprOM hierarchické/combined kódy** — Garching: `526.1` = CombinedSymbol (building = area fill `526.1.1` + outline `526.1.2` + point `526.1.3`). `resolve_default_area_code` pattern `^{base}(\.\d+)?$` nechytá dvouúrovňový `526.1.1` ani combined → default "526" neexistuje v library, 154 budov přeskočeno při exportu (symbol neznámý). Rozšířit resolver na víceúrovňové suffixy + AreaSymbol uvnitř CombinedSymbol. Souvisí s "CombinedSymbol parts parsing". Odhaleno sezení 10.
 - [ ] **Lake/pond detector (301/302)** — solid blue area. Distinct barva (modrá), low ambiguity.
 - [ ] **Pattern fill detector** — 407/409 Undergrowth (zelená šrafa), 415 Cultivated land. Vyžaduje line-density / Fourier detekci pattern fillu jako area type.
 
@@ -25,17 +27,19 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 ## DB infrastruktura
 
 - [ ] **`diff` verb (pic2db.py)** — implementovat porovnání dvou iter_N.json. Vyžaduje persistent ID matching přes IoU bbox + symbol_code (zatím schema-only).
-- [~] **`export` verb (db2omap)** — PoC + georef + line vektorizace hotové. Hotovo:
-  areas → kontury, **rigorózní georef** (sezení 9: `.pgw` + OMAP georef, pixel→coord
-  bez rotace, ověřeno 4×; bbox-fit fallback pro Local CRS), **line segment-trace**
-  (sezení 9: kostra jako graf, každá hrana → path, neztrácí délku). Slovanka 5968 obj,
-  forest 451 obj. Co zbývá do produkční verze:
+- [~] **`export` verb (db2omap)** — PoC + georef + line vektorizace + L-roh merge hotové.
+  Hotovo: areas → kontury, **rigorózní georef** (sezení 9: `.pgw` + OMAP georef,
+  pixel→coord bez rotace; bbox-fit fallback pro Local CRS; **sezení 10**: y-down fix
+  + map/projected ref_point + map_ref subtrakce + auxiliary_scale_factor — ověřeno na
+  3 párech), **line segment-trace** (sezení 9: kostra jako graf, neztrácí délku),
+  **L-roh merge** (sezení 10: post-trace `_merge_segments`, slévá staircase + slité
+  vrstevnice rovně přes uzel, ohyb < 40°; Slovanka −18 % segmentů, invariant pixel-set
+  zachován). Slovanka 5421 obj, forest 355 obj, Garching 5470 obj. Co zbývá:
   - **Bezier fit** — OOM používá kubické Beziery, ne polyline (Schneider fit). Nahradit
     approxPolyDP polyline za Bezier segmenty s flagy v `<coords>`.
   - **Re-linking fragmentů** — vrstevnice silně fragmentované (median 16 px) kvůli
     mid-symbol/černým překryvům. Spojit co-linear sousední segmenty (fáze B re-link).
-  - **L-roh merge** — segment-trace seká v 8-souvislých rozích (32 segmentů u obj 1864).
-    Sloučit segmenty pokračující přímo přes deg-3 roh (straightest continuation).
+    (L-roh merge spojuje jen segmenty SDÍLEJÍCÍ uzel; re-link řeší MEZERY = proximity.)
   - **1:10000 vs scale=15000** — ověřit Slovanka měřítko (titulek vs OMAP georef/`.pgw`).
 - [ ] **Multi-iter podpora** — re-link iterace fáze B: po point detection re-evaluovat fragmentované linie. Vyžaduje matching MapObject napříč iteracemi.
 

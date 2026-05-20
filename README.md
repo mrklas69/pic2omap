@@ -135,7 +135,35 @@ being silently skipped.
 Python 3.10+, `numpy`, `opencv-python`, `scikit-image` — see `requirements.txt`
 (`python -m venv .venv && .venv/Scripts/pip install -r requirements.txt`). ML pilot
 training packages (torch, segmentation-models-pytorch, albumentations) are intentionally
-kept out of `requirements.txt` — they run on the GPU machine, not here.
+kept out of `requirements.txt` — they live in `requirements-ml.txt` and run on the GPU
+machine, not in the cv2 dev stack here.
+
+## ML pilot — area segmentation (experimental)
+
+Parallel track (since sezení 12): train a U-Net to segment area symbols, with the mask
+taken from `.omap` **geometry** (not PNG colors — otherwise the model just relearns color
+separation we already do in cv2). A cheap pilot answers go/no-go before investing in a
+synthetic render pipeline for scale.
+
+```
+PNG + .omap → omap_mask (mask z geometrie) → build_dataset (tiling 512) → train (U-Net)
+```
+
+- **`omap_mask.py`** — per-pixel class mask from `.omap` area geometry (8 ColorCategory classes).
+- **`build_dataset.py`** — tile (image, mask) pairs → `output/dataset/` + `manifest.json`
+  (spatial split of one map = within-domain go/no-go signal).
+- **`train.py`** — smp U-Net (resnet34 / ImageNet), Dice+CE loss, per-class IoU, best-mIoU
+  checkpoint. Mild augmentation (the pilot's val/test are renders, not scans). `--smoke` for a
+  CPU pipeline check.
+
+Full training runs on the GPU box ("mrkla"):
+
+1. zip `output/dataset` (~30 MB) and copy it over (or regenerate via `build_dataset.py`).
+2. install `requirements-ml.txt` with a **CUDA** torch build (see the file header).
+3. `python train.py --epochs 40 --batch 16` → checkpoint at `output/checkpoints/best.pt`.
+
+Sanity (5 epochs on CPU, within-domain val): mean IoU 0.61, dominant classes (green/yellow)
+~0.9 — the model learns. Cross-domain eval (Garching) is the open go/no-go (component #5).
 
 ## Docs
 

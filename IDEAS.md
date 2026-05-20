@@ -208,7 +208,8 @@ modelu. **Pilot-first**: levný pilot segmentace ploch jako brána před investi
   potřebuje vlastní renderer nebo novější OOM. Pilot ale renderer NEpotřebuje (reálné PNG už máme).
 - **Komponenty:** #1 mask generator (`omap_mask.py`, hotovo — reality-check georef OK na úrovni
   ploch i přes ~5mm), #2 dataset builder (`build_dataset.py`, hotovo — spatial split), #3-4 U-Net
-  trénink (smp, na „mrkla"), #5 eval IoU = go/no-go pro scale.
+  trénink (`train.py`, hotovo sezení 13 → DONE — smp resnet34, Dice+CE; CPU sanity prokázal učení,
+  val mIoU 0.61; plný trénink na „mrkla"), #5 eval IoU = go/no-go pro scale.
 - **Riziko dat:** ~3-6 reálných `.omap`, 1 lesní velká (Slovanka). Pilot = spatial split jedné
   mapy (within-domain čistý signál). Generalizace přes mapy = potřebuje víc map nebo scale generátor.
 - **Třídy = úroveň `ColorCategory`** (8 tříd), ne ISOM kódy (pilot granularita).

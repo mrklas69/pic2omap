@@ -2,6 +2,22 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## ML pilot segmentace ploch — komponenta #3+4 (sezení 13)
+
+- [x] **`train.py` — U-Net trénink (komponenta #3+4)** — `SegDataset` (čte `manifest.json`,
+  BGR→RGB, mask = class indexy 0–7), `build_train_aug`/`build_eval_aug` (albumentations, **mírná**:
+  flip + rotate90 + drobný scale/posun + lehký jas — domain gap se v pilotu nevaliduje, val/test
+  jsou rendery; agresivní balík zakomentovaný pro reálné skeny), `build_model` (smp.Unet resnet34/
+  ImageNet, 8 tříd, logity), `DiceCELoss` (řeší imbalance ~11000×), `evaluate` (per-class IoU přes
+  `smp.metrics`, mean jen přes třídy přítomné v GT), `fit` (Adam, checkpoint best val mIoU, bez
+  Lightning). CLI `--smoke`/`--epochs`/`--batch`/`--lr`/`--encoder`/`--device`/`--workers`.
+  `force_utf8_console` (Windows cp1250 šipka). Smoke-test CPU OK (pipeline ověřena); **CPU sanity
+  5 epoch prokázal učení**: val mIoU 0.61, bg/green/yellow ~0.9, black 0→0.65, blue 0→0.23 (brown
+  127k px za 5 epoch CPU nezachycena). Plný trénink (40 epoch) na „mrkla". [2026-05-20 sezení 13]
+- [x] **`requirements-ml.txt`** — torch/segmentation-models-pytorch/albumentations oddělené od
+  `requirements.txt` (cv2 dev stack zůstává lehký). CPU instalace tady (smoke), CUDA na „mrkla"
+  (plný trénink). Pokyny v hlavičce souboru. [2026-05-20 sezení 13]
+
 ## ML pilot segmentace ploch — komponenty #1 + #2 (sezení 12)
 
 - [x] **Prostředí (`.venv` + `requirements.txt`)** — nový stroj (první klon), chyběl numpy/cv2.

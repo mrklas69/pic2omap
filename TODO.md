@@ -63,10 +63,16 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
   `manifest.json`. Split po CELÝCH mapách (leakage); pilot = spatial split Slovanky (train 234 /
   val 62 dlaždic within-domain) + Garching test 22 (cross-domain). `_ink_fraction` filtr (mimo
   mapu). Augmentace VĚDOMĚ ne tady — patří na trénink (#3). → DONE.
-- [ ] **Komponenta #3+4 — `train.py` + U-Net trénink** (na "mrkla", GPU) — `segmentation-models-
-  pytorch` (encoder resnet34, ImageNet pretrained), augmentace albumentations on-the-fly (šum, blur,
-  papír, JPEG, blednutí, rotace, geom. deformace = domain gap render→sken), bez Lightning na start.
-  Smoke-test CPU tady (instalovat torch CPU), pak plný trénink na "mrkla" + přenos/instalace instrukce.
+- [x] **Komponenta #3+4 — `train.py` + U-Net trénink** (sezení 13) — `train.py`: `SegDataset`
+  (manifest.json, BGR→RGB), smp U-Net resnet34/ImageNet, **mírná** augmentace albumentations (volba:
+  domain gap se v pilotu nevaliduje, val/test jsou rendery; agresivní balík zakomentovaný), Dice+CE
+  loss, per-class IoU (smp.metrics), checkpoint best mIoU, bez Lightning. `requirements-ml.txt`
+  (torch/smp/albumentations zvlášť, CPU/CUDA pokyny). Smoke-test CPU OK; **CPU sanity 5 epoch
+  prokázal učení** (val mIoU 0.61, bg/green/yellow ~0.9). → DONE.
+- [ ] **Plný trénink na „mrkla"** (GPU) — přenést dataset (30 MB zip output/dataset) + instalovat
+  requirements-ml.txt s CUDA torch, `python train.py --epochs 40 --batch 16` → output/checkpoints/
+  best.pt. Víc epoch dotáhne vzácné třídy. **brown 127k px** za 5 epoch CPU nezachycena (val IoU 0) —
+  pokud plný trénink nezabere, class weight / oversample.
 - [ ] **Komponenta #5 — eval** — IoU/Dice per třída na held-out mapě + vizuální overlay
   predikce vs GT vs foto. Go/no-go pro scale.
 - [ ] **Combined area symboly v masce** — budovy ISSprOM 526.1 jsou `COMBINED` (type 16),

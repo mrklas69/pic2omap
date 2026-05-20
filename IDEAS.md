@@ -141,6 +141,60 @@ Betonovali jsme střechu na nedodělaných základech (porušení *first things 
   per-symbol tabulka GT vs detekováno) → uživatel oponuje per-objekt → iterace detekce.
   Forma: 3 obrázky per `geometry_type` + `--symbols` filtr pro hustá místa.
 
+## ML rozpoznávání symbolů + synthetic data (Sezení 11 THINK)
+
+Prohloubení alternativy "B) ML-first". Branže vektorizaci rastrových map deep
+learningem **dělá** (historické/topografické mapy, ECCV 2024 + 2024-25 práce:
+CNN segmentace silnic/mokřadů/vrstevnic; CNN vektorizace bodových symbolů;
+trénink na **automaticky generovaných datech rekonstrukcí symbolů**). Orienťácky-
+specifický model **neexistuje** (díra). Viz `RESEARCH.md` pro zdroje.
+
+### Není to jedna úloha — tři CV problémy
+
+- **Plochy** → *semantic segmentation* (per-pixel třída). Nejvyzrálejší, ML zvládá výborně.
+- **Linie** → segmentation + vektorizace (skeletonizace — už máme).
+- **Body** → *object/instance detection* (instance + tvar). Řeší bráškův problém ML
+  cestou (model se naučí 536 T vs 537 kříž sám).
+
+### SOTA modely (k 2025/26)
+
+- Segmentace: **U-Net** (baseline), **SegFormer** (transformer, efektivní),
+  **Mask2Former** (universal semantic+instance).
+- Detekce bodů: **YOLOv11** (Ultralytics), **RT-DETR**.
+- Foundation: **SAM 2** (Meta, promptable) — ale třídně-agnostický, potřebuje klasif. hlavu.
+
+### Killer výhoda — synthetic data z OMAP
+
+Důvod, proč to NENÍ bez šance. ML obvykle umírá na nedostatek labeled dat; my
+generujeme **neomezeně**: `.omap` → render → `(obrázek, per-pixel maska symbolů)`,
+ground truth zadarmo a dokonalý. Augmentace (šum, blur, rotace, papír, JPEG,
+vyblednutí) napodobí scany. Doménové výhody (konečná paleta, množina symbolů,
+předepsané rozměry, pořadí vrstev) render věrně reprodukuje.
+
+**Dvojí hodnota:** synthetic render dá **pixel-perfect alignment obrázek↔maska** →
+vyřeší i náš current evaluační blokátor (per-objekt GT matching ztroskotal na ~5mm
+georef nepřesnosti, viz [[gt-db-matching-needs-georef]]). Takže pipeline má hodnotu
+**i bez ML** — přesná evaluace cv2 detektorů.
+
+### Rizika
+
+- **Domain gap render→scan** (největší). Augmentace pomáhá, negarantuje.
+- **Renderer** — kdo věrně vykreslí `.omap` → obrázek (vrstvy, anti-alias, pattern fill)?
+  OOM CLI export? Vlastní renderer (máme parser + geometrii symbolů, ale věrný render je práce).
+- **Vektorizace masek → DB** zůstává (Stage 5).
+- **Infra** — GPU trénink, serving, MLOps. Velká investice vs cv2.
+- **Class imbalance** — vzácné symboly podreprezentované; v synthetic lze cíleně přesytit.
+
+### Doporučené fázování (low-regret)
+
+1. **Synthetic data/eval pipeline** (first) — `.omap` → render → `(image, mask)`. Hned na
+   pixel-perfect evaluaci cv2 (odemkne ladění blokované georef). Základ pro ML.
+2. **ML pilot: segmentace ploch** — nejsnazší win, ověří pipeline + domain gap.
+3. **ML detekce bodů** (pokud pilot vyjde) — bráškův problém systematicky.
+4. **Hybrid** — ML kde vyhrává, cv2 baseline jinde.
+
+ML = paralelní track, ne náhrada current práce. Synthetic pipeline = nejlepší společný základ.
+
 ## Otevřené otázky
 
 ### Zodpovězeno

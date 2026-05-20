@@ -45,6 +45,22 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
   neodliší. Claude vision (API) ověří zúžené kandidáty dle kontextu — jako bráška. Strop
   čistého cv2 ~33 % precision na top kandidátech.
 
+## ML / synthetic data track (Sezení 11 THINK)
+
+> Paralelní track k cv2. Detail + fázování + SOTA modely: `IDEAS.md` "ML rozpoznávání".
+
+- [ ] **Synthetic render pipeline** (low-regret first step) — `.omap` → render →
+  `(obrázek, per-pixel maska symbolů)`. Dvojí hodnota: (a) trénovací data pro ML,
+  (b) **pixel-perfect ground truth pro evaluaci cv2** (odemkne per-objekt eval blokovaný
+  ~5mm georef, viz memory `gt-db-matching-needs-georef`). PRVNÍ otázka: **renderer** —
+  prozkoumat OOM/OCAD dávkový `.omap` → PNG export (CLI?), jinak vlastní renderer
+  (máme `omap_parser` + geometrii symbolů z template PoC, ale věrný render = vrstvy +
+  anti-alias + pattern fill = práce).
+- [ ] **ML pilot: semantic segmentation ploch** — po synthetic pipeline. U-Net/SegFormer,
+  trénink na synthetic + augmentace (domain gap render→scan). Nejsnazší ML win.
+- [ ] **ML detekce bodů** (po pilotu) — YOLOv11/RT-DETR, řeší tvarovou disambiguaci bodů
+  (536 vs 537) systematicky. Class imbalance vzácných symbolů → přesytit v synthetic.
+
 ## Stage 4 — Detektory (priority pro další sezení)
 
 - [ ] **Per-priority area disambiguation v3** — v2 (`area_v1` + `--omap` flag, sezení 7) zlepšil per-symbol klasifikaci 8 % (4× 408 + 3× 404). Limitace: component-level majority threshold (50 %) je moc přísný pro fragmentovanou Stage 3, 410 Opaque Green stále nedetekováno, 408 hodně pod GT. v3: per-pixel priority assignment + split komponenty na sub-areas per dominantní priority. Vyžaduje rework Stage 3 connected components.

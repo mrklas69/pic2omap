@@ -3,7 +3,7 @@
 Externí rešerše: existující nástroje, akademické práce, formáty, komunitní zdroje.
 Žije souběžně s `IDEAS.md` — sem patří **co je venku**, do `IDEAS.md` **co bychom mohli udělat my**.
 
-**Poslední aktualizace**: 2026-05-19 (sezení 2). Vlastní externí zdroje od té doby nezměněny.
+**Poslední aktualizace**: 2026-05-20 (sezení 11 — ML/synthetic rešerše). Předtím 2026-05-19 (sezení 2).
 
 ---
 
@@ -90,8 +90,19 @@ Externí rešerše: existující nástroje, akademické práce, formáty, komuni
 | Semantic Segmentation for Sequential Historical Maps | https://arxiv.org/abs/2501.01845 | Časové řady historických map |
 | Evaluating AI-Driven Automated Map Digitization in QGIS | https://arxiv.org/abs/2504.18777 | QGIS + AI digitization eval |
 | Esri / ArcGIS Pro AI digitization | Living Atlas pretrained models | Komerční ecosystem |
+| Automatic vectorization of point symbols on archive maps (CNN) | https://www.researchgate.net/publication/356776964 | **Bodové symboly** přes deep CNN — nejblíž našemu point problému |
+| Deep learning wetlands on historical topo maps (Transactions in GIS 2024) | https://onlinelibrary.wiley.com/doi/10.1111/tgis.13193 | Segmentace prvků se specifickou symbolikou |
+| Semantic segmentation of historical maps, Self-Constructing Graph CNN (2025) | https://www.tandfonline.com/doi/full/10.1080/15230406.2025.2468304 | Graph CNN segmentace |
 
-**Aplikovatelnost**: U-Net + multi-class segmentation pro orienťácké barvy / symboly je přímo aplikovatelný přístup. **Chybí annotated dataset** — bylo by nutné vyrobit.
+**Aplikovatelnost (sezení 11 THINK):** Tři CV úlohy — *semantic segmentation* (plochy/linie),
+*object detection* (body), vektorizace. SOTA: **U-Net / SegFormer / Mask2Former** (segmentace),
+**YOLOv11 / RT-DETR** (detekce bodů), **SAM 2** (promptable foundation, třídně-agnostický).
+
+**Annotated dataset NEMUSÍME ručně labelovat** — generujeme **synthetic** z `.omap` renderů
+(validováno v road-extraction práci přes "symbol reconstruction"). `.omap` → render →
+`(image, per-pixel mask)`, ground truth zadarmo + pixel-perfect (řeší i náš georef eval blokátor).
+Riziko: domain gap render→scan (augmentace), renderer (OOM CLI vs vlastní). Detail: `IDEAS.md`
+"ML rozpoznávání symbolů + synthetic data".
 
 ---
 

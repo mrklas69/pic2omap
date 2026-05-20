@@ -52,7 +52,17 @@ color separation cannot tell apart.
 | `area_v1` (GREEN) | 406/407/408 + default | forest 59 / Slovanka 1115 (766×406.1) |
 | `area_v1` (YELLOW) | 401/403/404 + default | forest 26 / Slovanka 1482 (1182×403.0) |
 | `area_v1` (BLACK) | 526 Building | forest 59 / Slovanka 448 (1.11× GT) |
+| `area_v1` (GRAY) | 526.1 buildings (sezení 11) | Garching 241 buildings (gray fill, ISSprOM combined) |
+| `point_v1` | 115/536/418 + default (sezení 11) | forest 440 (brown 235/black 58/green 147) — over-claims, point bucket noise |
 | `erosion_gully_v1` | 109 Erosion gully | disconnected (0/17 precision, see memory) |
+
+Sezení 11 additions: GRAY building detector + ISSprOM combined-code resolver
+(`526.1.1` → combined `526.1`); `point_v1` (point bucket, over-claims — point
+symbols drown in line fragments); discriminative template-matching PoC
+(`point_template_poc.py` — finds both 536 towers top-3 from 226 fragments by
+matching the exact T shape from OMAP geometry). Review tooling: `mark --by-type`
+(3 images point/line/area), `compare_to_omap --db --csv-dir` (per-symbol GT↔DB
+table + CSV exports).
 
 ## Detector metrics (forest sample, iter_1)
 
@@ -85,11 +95,11 @@ being silently skipped.
 ## Repository layout
 
 ### Entry points
-- `pic2db.py` — main CLI (`detect`, `list`, `mark`, `export` PoC; `diff` stub)
+- `pic2db.py` — main CLI (`detect`, `list`, `mark --by-type/--scale`, `export` PoC; `diff` stub)
 - `db2omap.py` — DB → OMAP serialization (PoC)
 - `separate_demo.py` — Stage 2 (color separation)
 - `stage3_demo.py` — Stage 3 (morphology + components + skeleton)
-- `compare_to_omap.py` — ground truth metric
+- `compare_to_omap.py` — ground truth metric (`--db` per-symbol table, `--csv-dir` review CSV)
 - `dump_symbols.py` — symbol DB overview
 
 ### DB infrastructure
@@ -104,9 +114,11 @@ being silently skipped.
 
 ### Stage 4 detectors
 - `brown_line_v1.py` — 101 / 102 (thickness peak)
-- `area_v1.py` — solid fill areas, parameterized by `ColorCategory`
+- `area_v1.py` — solid fill areas (GREEN/YELLOW/BLACK/GRAY), parameterized by `ColorCategory`
+- `point_v1.py` — point symbols via point bucket (size + aspect filter)
+- `point_template_poc.py` — discriminative template matching PoC (shape from OMAP geometry)
 - `orientation_v1.py` — map rotation from 601.x north lines
-- `erosion_gully_v1.py` — 109 experiment (disconnected, kept as reference)
+- `erosion_gully_v1.py`, `form_line_v1.py` — 109/103 experiments (disconnected, kept as reference)
 - `peak_visualizer.py` — shared utility (thickness classification, ID overlay)
 
 ### Exploratory / probes

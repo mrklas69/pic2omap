@@ -1,0 +1,7 @@
+# pic2omap — runtime závislosti (cv2 pipeline + mask generator).
+# Trénink ML modelů (torch, segmentation-models-pytorch, albumentations) NENÍ
+# zde — běží na GPU stroji ("mrkla"), viz docs/diary ML pilot. Drž tenhle
+# soubor jen pro detekční/datovou pipeline, ať instalace tady zůstane lehká.
+numpy>=2.0
+opencv-python>=4.10
+scikit-image>=0.24

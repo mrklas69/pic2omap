@@ -45,21 +45,45 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
   neodliší. Claude vision (API) ověří zúžené kandidáty dle kontextu — jako bráška. Strop
   čistého cv2 ~33 % precision na top kandidátech.
 
-## ML / synthetic data track (Sezení 11 THINK)
+## ML pilot — segmentace ploch (Sezení 12)
 
-> Paralelní track k cv2. Detail + fázování + SOTA modely: `IDEAS.md` "ML rozpoznávání".
+> **Cíl pilotu (go/no-go):** naučí se U-Net segmentovat plochy z reálného obrázku,
+> když masku vezmeme z `.omap` geometrie? Metrika = IoU per třída na held-out mapě.
+> Rozhodne, jestli investovat do procedurálního generátoru + rendereru pro scale.
+> Vstup cílově = degradované reálné skeny → domain gap = hlavní bitva (agresivní
+> augmentace). Trénink na GPU stroji "mrkla", vývoj tady. Detail: `IDEAS.md` "ML pilot".
 
-- [ ] **Synthetic render pipeline** (low-regret first step) — `.omap` → render →
-  `(obrázek, per-pixel maska symbolů)`. Dvojí hodnota: (a) trénovací data pro ML,
-  (b) **pixel-perfect ground truth pro evaluaci cv2** (odemkne per-objekt eval blokovaný
-  ~5mm georef, viz memory `gt-db-matching-needs-georef`). PRVNÍ otázka: **renderer** —
-  prozkoumat OOM/OCAD dávkový `.omap` → PNG export (CLI?), jinak vlastní renderer
-  (máme `omap_parser` + geometrii symbolů z template PoC, ale věrný render = vrstvy +
-  anti-alias + pattern fill = práce).
-- [ ] **ML pilot: semantic segmentation ploch** — po synthetic pipeline. U-Net/SegFormer,
-  trénink na synthetic + augmentace (domain gap render→scan). Nejsnazší ML win.
-- [ ] **ML detekce bodů** (po pilotu) — YOLOv11/RT-DETR, řeší tvarovou disambiguaci bodů
-  (536 vs 537) systematicky. Class imbalance vzácných symbolů → přesytit v synthetic.
+- [x] **Komponenta #1 — mask generator** (sezení 12) — `omap_mask.py`: area objekty
+  z `.omap` → coord→pixel transform (re-use db2omap georef, obrácený směr) → fillPoly →
+  uint8 maska class indexů (ColorCategory úroveň, 8 tříd). Bezier tessellation + holes +
+  priority řazení. Solid fill jen (inner_color != -1; pattern-only overlaye jako severky
+  601 přeskočeny — jinak přemažou plochy pod sebou). Overlay reality-check: Garching +
+  Slovanka **alignment OK**, ~5mm georef na úrovni ploch nevadí. → DONE.
+- [x] **Komponenta #2 — dataset builder** (sezení 12) — `build_dataset.py`: tiling 512×512 +
+  `manifest.json`. Split po CELÝCH mapách (leakage); pilot = spatial split Slovanky (train 234 /
+  val 62 dlaždic within-domain) + Garching test 22 (cross-domain). `_ink_fraction` filtr (mimo
+  mapu). Augmentace VĚDOMĚ ne tady — patří na trénink (#3). → DONE.
+- [ ] **Komponenta #3+4 — `train.py` + U-Net trénink** (na "mrkla", GPU) — `segmentation-models-
+  pytorch` (encoder resnet34, ImageNet pretrained), augmentace albumentations on-the-fly (šum, blur,
+  papír, JPEG, blednutí, rotace, geom. deformace = domain gap render→sken), bez Lightning na start.
+  Smoke-test CPU tady (instalovat torch CPU), pak plný trénink na "mrkla" + přenos/instalace instrukce.
+- [ ] **Komponenta #5 — eval** — IoU/Dice per třída na held-out mapě + vizuální overlay
+  predikce vs GT vs foto. Go/no-go pro scale.
+- [ ] **Combined area symboly v masce** — budovy ISSprOM 526.1 jsou `COMBINED` (type 16),
+  ne `AREA` → `omap_mask` je vynechá (Garching gray jen 0.1 %). Pro sprint nutné rozbalit
+  combined parts (area fill part) do masky. Pro lesní core pilot neblokuje.
+
+## ML scale track — až po go/no-go pilotu
+
+- [ ] **Synthetic render pipeline** — procedurálně generovaný `.omap` → render →
+  `(obrázek, pixel-perfect maska)`. Neomezená diverzita + odemkne per-objekt eval cv2.
+  **Renderer NELZE přes OOM 0.9.5** (ověřeno sezení 12: GUI-only, žádný headless export/
+  konverze — argument = soubor k otevření). Cesty: vlastní renderer (máme `omap_parser` +
+  geometrii z template PoC; věrný render = vrstvy + anti-alias + pattern fill = práce),
+  nebo ověřit novější OOM (0.9.6+ / fork dg0yt). Pozn.: pro degradované skeny je výhoda
+  věrného renderu menší (gap render→sken stejně řeší augmentace).
+- [ ] **ML detekce bodů** (po segmentaci) — YOLOv11/RT-DETR, řeší tvarovou disambiguaci
+  bodů (536 vs 537) systematicky. Class imbalance vzácných symbolů → přesytit v synthetic.
 
 ## Stage 4 — Detektory (priority pro další sezení)
 

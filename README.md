@@ -132,8 +132,10 @@ being silently skipped.
 
 ## Dependencies
 
-Python 3.10+, `numpy`, `opencv-python`, `scikit-image`. (No `requirements.txt`
-yet — see TODO.)
+Python 3.10+, `numpy`, `opencv-python`, `scikit-image` — see `requirements.txt`
+(`python -m venv .venv && .venv/Scripts/pip install -r requirements.txt`). ML pilot
+training packages (torch, segmentation-models-pytorch, albumentations) are intentionally
+kept out of `requirements.txt` — they run on the GPU machine, not here.
 
 ## Docs
 

@@ -195,6 +195,24 @@ georef nepřesnosti, viz [[gt-db-matching-needs-georef]]). Takže pipeline má h
 
 ML = paralelní track, ne náhrada current práce. Synthetic pipeline = nejlepší společný základ.
 
+## ML pilot — segmentace ploch (Sezení 12, → TODO)
+
+Konkretizace „B) ML-first" do akčního pilotu. Uživatel rozhodl jít cestou trénovaného
+modelu. **Pilot-first**: levný pilot segmentace ploch jako brána před investicí do generátoru.
+
+- **Maska z `.omap` geometrie, ne z barev PNG** — jádro architektury. Color-classify PNG by
+  učil model jen color separation (umíme v cv2 = nulová ML hodnota). Autoritativní pravda = vektor.
+- **Cílový vstup = degradované reálné skeny** (mapy po závodě / staré se ztraceným zdrojem) →
+  domain gap = hlavní bitva, agresivní augmentace (on-the-fly při tréninku, ne v datasetu).
+- **Renderer: OOM 0.9.5 GUI-only** (ověřeno) → headless render `.omap`→PNG nejde; scale track
+  potřebuje vlastní renderer nebo novější OOM. Pilot ale renderer NEpotřebuje (reálné PNG už máme).
+- **Komponenty:** #1 mask generator (`omap_mask.py`, hotovo — reality-check georef OK na úrovni
+  ploch i přes ~5mm), #2 dataset builder (`build_dataset.py`, hotovo — spatial split), #3-4 U-Net
+  trénink (smp, na „mrkla"), #5 eval IoU = go/no-go pro scale.
+- **Riziko dat:** ~3-6 reálných `.omap`, 1 lesní velká (Slovanka). Pilot = spatial split jedné
+  mapy (within-domain čistý signál). Generalizace přes mapy = potřebuje víc map nebo scale generátor.
+- **Třídy = úroveň `ColorCategory`** (8 tříd), ne ISOM kódy (pilot granularita).
+
 ## Otevřené otázky
 
 ### Zodpovězeno

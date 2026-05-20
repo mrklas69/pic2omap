@@ -2,6 +2,27 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## ML pilot segmentace ploch — komponenty #1 + #2 (sezení 12)
+
+- [x] **Prostředí (`.venv` + `requirements.txt`)** — nový stroj (první klon), chyběl numpy/cv2.
+  `.venv` (Python 3.12.3), `requirements.txt` (numpy/opencv/scikit-image; ML balíčky vědomě jen
+  na GPU stroji "mrkla"). Vyřešen starý TODO. Windows git "dubious ownership" fix. [2026-05-20 sezení 12]
+- [x] **`omap_mask.py` — mask generator (komponenta #1)** — area objekty z `.omap` → per-pixel
+  sémantická maska class indexů (úroveň `ColorCategory`, 8 tříd). `build_area_mask` (parse objektů,
+  priority řazení, fillPoly + holes), `_coords_to_rings` (Bezier tessellation flag 1, hole split
+  flag 16), `_symbol_class` (jen inner_color = solid fill; pattern-only jako severky 601 přeskočeny —
+  jinak přemažou plochy pod sebou, bug 43 % falešná modrá opraven), `_coord_to_pixel_matrix`
+  (re-use db2omap georef parsery, obrácený směr coord→pixel + ratio škálování), `overlay_on_image`.
+  **Maska z autoritativní .omap geometrie, NE z barev PNG** (jinak nulová ML hodnota). Reality-check:
+  Garching + Slovanka alignment OK, ~5mm georef na úrovni ploch nevadí. Memory `ml-pilot-segmentace-ploch`,
+  `oom-095-no-headless-render`. [2026-05-20 sezení 12]
+- [x] **`build_dataset.py` — dataset builder (komponenta #2)** — tiling (PNG, .omap) párů →
+  dlaždice 512×512 + `manifest.json`. `_tile_split` (spatial train/gap/val per y → within-domain
+  čistý go/no-go signál), `_ink_fraction` filtr (>5 % ne-bílých = uvnitř mapy), `_class_px`.
+  Augmentace VĚDOMĚ ne v datasetu (patří na trénink, on-the-fly). Split po celých mapách (leakage).
+  Slovanka spatial: train 234 / val 62 dlaždic (within-domain, podobná class distrib.), Garching
+  test 22 (cross-domain). [2026-05-20 sezení 12]
+
 ## Template matching point detektor — PoC (sezení 11)
 
 - [~] **`point_template_poc.py` — diskriminativní template matching** — převzato od jiného Clauda ("bráška" našel 2 posedy 536 vizuálně). Render tvaru symbolu z OMAP geometrie (T = coords čar) + diskriminativní kernel (foreground T kde MÁ být černá, + forbidden prstenec kde MÁ být bílá → penalizuje 537 kříž nad vodorovnou + budovy po stranách), `filter2D`, self-kalibrace měřítka. **Oba posedy spolehlivě top-3 (skóre 0.88/0.84) z 226 bucket fragmentů** → 6 kandidátů, 100 % recall. Strop: roh budovy v písčině (skóre 0.86) se neodliší (izolovanost selže — posed na srázu = velká komponenta). Bráškova vision to zvládla, plain cv2 ne. Zachováno jako PoC/reference. Memory `template-match-point-detection`. [2026-05-20 sezení 11]

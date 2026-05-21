@@ -180,6 +180,11 @@ def set_seed(seed: int) -> None:
 
 def fit(args) -> None:
     set_seed(args.seed)
+    if args.threads > 0:
+        # Pozor (CPU): optimum bývá počet FYZICKÝCH jader. torch default už ho
+        # detekuje (zde 6 z 12 logických); vynucení = logických přes hyperthreading
+        # může compute-bound trénink spíš zpomalit. Nech 0, pokud neměříš.
+        torch.set_num_threads(args.threads)
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
     manifest_path = Path(args.dataset) / "manifest.json"
     class_names = {int(k): v for k, v in
@@ -232,7 +237,8 @@ def main() -> None:
     ap.add_argument("--epochs", type=int, default=40)
     ap.add_argument("--batch", type=int, default=8)
     ap.add_argument("--lr", type=float, default=1e-3)
-    ap.add_argument("--workers", type=int, default=0, help="DataLoader workers (0 = bezpečné na Windows)")
+    ap.add_argument("--workers", type=int, default=0, help="DataLoader workers (0 = bezpečné na Windows; >0 schová data-loading za compute)")
+    ap.add_argument("--threads", type=int, default=0, help="torch CPU threadů (0 = torch auto = fyzická jádra; vynucení viz fit())")
     ap.add_argument("--seed", type=int, default=42, help="RNG seed pro reprodukovatelnost")
     ap.add_argument("--device", default=None, help="cuda/cpu (default auto)")
     ap.add_argument("--smoke", action="store_true",

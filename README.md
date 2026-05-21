@@ -171,14 +171,17 @@ but that was **misleading, not "ML fails"**, and sezení 15 pinned down why:
 
 - The Garching GT mask used to omit combined buildings (`526.1`); `omap_mask` now resolves the
   AREA part of combined symbols, so the mask is complete (gray buildings/canopy = 8.6 % of it).
-- The **dominant** distortion was a **georef shift** of the Garching mask vs raster — a clean
-  translation of +129/+417 px (Slovanka's georef is fine). Aligning the mask lifts cross-domain
-  mean IoU 0.106 → **0.283**, green 0.12 → **0.62**: the area-class generalization was hidden by
-  a broken `.pgw`, not by the method.
+- The **dominant** distortion was a **georef bug** in the Garching mask vs raster — a clean
+  translation of +142/+413 px. **Sezení 16 found and fixed the root-cause:** a unit bug in
+  `georef.py` (the map `<ref_point>` is in mm, but object coords are 1/1000 mm — a missing ×1000;
+  only Garching had a non-zero `map_ref`, so only it was affected — Slovanka's is `(0,0)`). After
+  the fix, cross-domain mean IoU **0.106 → 0.340**, green **0.12 → 0.875**: the area-class
+  generalization was hidden by a broken georef, not by the method.
 - What remains low (gray/black/brown) is a genuine ISOM↔ISSprOM class gap (the model knows
   buildings as BLACK from forest ISOM; Garching is GRAY) plus a single training map.
 
-Next blockers: fix the Garching `.pgw` translation, then more maps / domains. The method is sound.
+Next: full GPU training (now with an honest cross-domain metric from the start), then more
+maps / domains. The method is sound.
 
 ## Docs
 

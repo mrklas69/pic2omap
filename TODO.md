@@ -8,28 +8,14 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 > budovy přesně (ratio ~1×, správné kódy). Bodové/pattern symboly až potom.
 > Export (krok 7) zamražen. Detail: `IDEAS.md` "Milník v1".
 
-- [x] **Review nástroj (mark + per-symbol tabulka + CSV)** (sezení 11) — `mark --by-type`
-  (3 obrázky point/line/area), `--scale N` (čitelné ID), `--with-ids`. `compare_to_omap
-  --db` (per-symbol tabulka kód|název|GT|DB|ratio|status) + `--csv-dir` (review_suma.csv,
-  review_gt.csv = GT objekty z OMAP, review_detail.csv = naše detekce). → DONE.
 - [ ] **Per-objekt matching GT↔DB** — zkoušeno (sezení 11), odloženo. Nearest-centroid
   produkoval >90 % falešných párů: forest nemá přesný georef (bbox-fit), Garching `.pgw`
   je jen ~5mm přesný (jen 15 % budov sedí do své velikosti). Potřebuje (a) přesný georef,
   (b) odfiltrovat legendu z `.omap` GT, (c) možná IoU overlap místo centroidu. Bez něj
   se GT (coord) a naše (raster) pozice 1:1 neslícují.
-- [!] **Georef přesnost Garching `.pgw`** — **POVÝŠENO (sezení 15):** ne ~5mm, ale **čistý
-  translation +129/+417 px** (bbox rozměry obsahu sedí: výška 2292=2292, jen origin posunutý —
-  ne rotace, jak se dřív tušilo → snazší oprava). Specifický pro Garching (Slovanka val funguje,
-  green 0,91 → její georef OK). **Dominantní zkreslič cross-domain evalu**: shift masky o (−129,−417)
-  → mIoU 0,106 → 0,283, green 0,12 → 0,62 (sezení 15 shift-experiment). Diagnostikovat root-cause
-  (`.pgw` parsing? `georef.py` refaktor sezení 14? origin/ref_point?), opravit; opraví i export
-  (krok 7, společný `georef.py` → baseline regrese). Memory `georef-paper-space-not-world`, `garching-pgw-shift`.
 - [ ] **Brown-line precision audit (138 vs 66 GT)** — proč 2,1× over. Mix mislabeled
   hnědých bodů (115/116/112/113 nemají point detektor) + over-segmentace vrstevnic.
   Po review identifikovat, kolik je čeho.
-- [x] **Point detektor v1** (sezení 11) — `point_v1.py` (mirror area_v1), `geometry_type=
-  "point"`, brown/black/green kategorie, filtr velikost + aspect, default 115/536/418.
-  Zapojen v `pic2db` (po area, claimuje unclaimed). Tři obrázky point/line/area hotové. → DONE.
 - [ ] **Point detektor v2 — redukce over-claim** — v1 over-claimuje 7–34× (forest brown
   235 vs GT 7, black 58 vs 4, green 147 vs 21): point bucket plný fragmentů linií. Potřebuje:
   (a) **izolovanost** — komponenta sousedící s line/area claim_mask = odříznutý fragment,
@@ -78,9 +64,6 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
   best.pt, pak re-eval přes `eval.py`. Reprodukovatelné (`--seed`), `--workers`/`--threads` připravené.
   **brown** vzácná třída chytá až po ~11 epochách (sezení 14, 15-epoch běh: 0→0,25) — 40 epoch by mělo
   dotáhnout; pokud ne, class weight / oversample.
-- [x] **Komponenta #5 — eval** (sezení 14) — `eval.py`: load checkpoint → per-class IoU (reuse
-  `train.evaluate`) + overlay foto|GT|pred. Within-domain mIoU 0,666 (U-Net se učí ✓), cross-domain
-  Garching 0,122 (zavádějící — chudá GT + domain gap). → DONE.
 
 ## ML scale track — až po go/no-go pilotu
 
@@ -99,8 +82,6 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 - [ ] **Per-priority area disambiguation v3** — v2 (`area_v1` + `--omap` flag, sezení 7) zlepšil per-symbol klasifikaci 8 % (4× 408 + 3× 404). Limitace: component-level majority threshold (50 %) je moc přísný pro fragmentovanou Stage 3, 410 Opaque Green stále nedetekováno, 408 hodně pod GT. v3: per-pixel priority assignment + split komponenty na sub-areas per dominantní priority. Vyžaduje rework Stage 3 connected components.
 - [ ] **Black area per-shape filter** — `area_v1` BLACK detekuje 59/50 GT (1.18× over) ve forest sample. False positives jsou balvany (kruhové) a road fragmenty. Per-shape filter: Building = obdélníkový (aspect_ratio compactness), balvan = kruhový → reject. 527 Settlement / 528 OOB sdílí priority s 526 → disambiguation v2 je nerozliší, nutný shape-based classifier.
 - [ ] **Disambiguation performance** — `_disambiguate_component` dělá per-component full-image AND se VŠEMI priority maskami. Slovanka BLACK: 448 komp × 19 masek × 6.5 Mpx = desítky sekund. Omezit overlap na bbox komponenty (crop masku na bbox před AND).
-- [x] **Template-aware symbol codes v detektorech** (sezení 8) — `resolve_brown_line_codes` v `brown_line_v1` + `resolve_default_area_code` v `area_v1`. Caller resolvuje exact kódy z library a předá. Slovanka: 101.0/102.0, default 403.0/406.1/526.0. → DONE.
-- [x] **YELLOW disambiguation over-detection 403.1** (sezení 8) — **nebyla to over-detection, ale mislabeling.** 403.0≡403.1 a 401.0≡401.1 mají identickou RGB, color separation je nerozliší, `deduplicate_by_rgb` zahodí jednu masku. Disambiguace lepila přeživší `.1` variantu. Fix: `build_priority_to_area_code` RGB grouping + base-variant výběr. → DONE.
 - [ ] **GREEN/YELLOW area under-detection** — Slovanka: 404.0 (8/159), 407.0 (47/242), 408.1 (302/630) pod GT. Color separation slévá blízké odstíny do dominantní barvy (403.0/406.1). 407 je navíc pattern (šrafa) → pattern detektor. Per-component context nebo jemnější paleta.
 - [ ] **109 Erosion gully discrimination v2** — `erosion_gully_v1` byl odpojen (0/17 precision,
   GT jen 2× 109) a **smazán (sezení 14)**. v2 vyžaduje pozici-based check ("leží mezi 101 sousedy" —
@@ -110,8 +91,6 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
   Sparse GT pattern stejný jako 109. v2 vyžaduje pozici-based check (sekvence ≥ 3 co-linear dashů
   s pravidelnými gaps) nebo multi-sample validaci. Git historie + memory `sparse-gt-naive-detector-trap`.
 - [ ] **110 Small erosion gully** — `line_width=0` + `mid_symbol` Brown tečka. 16× ve forest sample. Patří do **point/dot detectoru** (sequence clustering), ne brown line. Budoucí `brown_dot_v1`.
-- [x] **gray (budovy) area detektor** (sezení 11) — `area_v1` + GRAY kategorie (MIN_AREA=80, default 526, prefix 5) + `pic2db` GRAY blok s disambiguací. Garching 241 budov (median 1297 px), recall 88 %. → DONE.
-- [x] **ISSprOM hierarchické/combined kódy** (sezení 11) — CombinedSymbol parts parsing (`omap_parser`) + `_promote_to_combined` (526.1.1 → combined 526.1) + resolver pattern `*` + category filtr. Export 220× combined budova. Pozn.: "154 budov ztraceno" byl mislabeling — ty fragmenty (median 26 px) NEjsou budovy, zahození správné. → DONE.
 - [ ] **Lake/pond detector (301/302)** — solid blue area. Distinct barva (modrá), low ambiguity.
 - [ ] **Pattern fill detector** — 407/409 Undergrowth (zelená šrafa), 415 Cultivated land. Vyžaduje line-density / Fourier detekci pattern fillu jako area type.
 

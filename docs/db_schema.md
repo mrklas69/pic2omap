@@ -24,7 +24,7 @@ class MapObject:
     id: int                          # persistent napříč iteracemi (viz "Persistent IDs")
     symbol_code: str                 # "101", "204"... string kvůli OMAP konzistenci
     geometry_type: Literal["point", "line", "area"]
-    category: ColorCategory          # brown / black / blue / yellow / green / purple
+    category: ColorCategory          # brown / black / blue / yellow / green / purple / gray / white / red
 
     # Lokalizace
     bbox: tuple[int, int, int, int]  # (x0, y0, x1, y1) v pixelech rasteru
@@ -38,7 +38,7 @@ class MapObject:
     # Diagnostika
     confidence: float                # 0.0–1.0
     detected_in_iter: int            # iter_N, kde objekt vznikl
-    detection_method: str            # "thickness_v1", "shape_match_v1", ...
+    detection_method: str            # = filename detektoru: "brown_line_v1", "area_v1", "point_v1"
 ```
 
 **Proč `pixel_blob_id` místo polyline**: vektorizace (Schneider Bezier) je Stage 5,
@@ -132,10 +132,11 @@ python pic2db.py export "output/forest sample" --to omap --out forest.omap
 
 ### Vztah ke stávajícím skriptům
 
-`peak_visualizer.py`, `border_overlay.py`, `thickness_probe.py`, `border_probe.py` jsou
-rozpoznávací experimenty pre-DB éry. Zůstávají jako legacy (referenční implementace pro
-brown line classifier). Až bude `pic2db.py detect` produkční, transformují se na
-jeden ze symbol detectorů uvnitř (`detectors/brown_line_v1.py`).
+`pic2db.py detect` je produkční (Sezení 6+); detektory žijí v rootu
+(`brown_line_v1.py`, `area_v1.py`, `point_v1.py`), `peak_visualizer.py` je
+jejich sdílená utilita. Exploratorní probes (`thickness_probe.py`,
+`border_probe.py`, `border_overlay.py`) zůstávají v rootu jako reference
+(viz README „Exploratory / probes").
 
 ## Persistent IDs napříč iteracemi
 

@@ -2,6 +2,27 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## Sezení 16 — projektový overlay + %AUDIT:DOCS + georef map_ref fix
+
+- [x] **Georef `map_ref` root-cause fix** — Garching maska/export posunutá o translation +142/+413 px
+  byl **jednotkový bug**: `<georeferencing><ref_point>` je v mm, ale `georef._build_map_to_proj` ho
+  odečítal od object coords v 1/1000 mm → chybělo ×1000. Fix `map_ref *= 1000.0`. Důkaz na dvou osách
+  (35 mm→413 px, 10 mm→118 px). Regrese: Slovanka maska bit-identická (md5), forest imunní (bbox-fit);
+  Garching posun +142/+413 → +24/+1 px (zarovnáno, vizuálně ověřeno). Re-eval cross-domain mIoU 0,106 →
+  **0,340**, green 0,12 → **0,875** (area generalizace byla 4 sezení skrytá rozbitým georefem, ne metodou).
+  Bug přežil od sezení 10 — bbox=GT i pokrytí % testy slepé k translation. Memory `garching-pgw-shift`,
+  `cross-domain-eval-poor-gt`. [2026-05-21 sezení 16]
+- [x] **`%CALIBRATE` (poprvé, práh 15/15) — projektový overlay** — `docs/PROMPTS.md` (%BEGIN/%END
+  projektově: co číst, jak počítat cadence, identita sezení) + projektový `CLAUDE.md` (doménové zásady:
+  verify-against-source, baseline-regrese, ověření premisy, mapař-oponent; %THINK rozšíření; key-files).
+  Vědomě bez project info (status/milníky = README). Řeší 2× flagovaný nález (sezení 14/15). [2026-05-21 sezení 16]
+- [x] **`%CALIBRATE` — permission úklid + TODO/DONE prune** — `.claude/settings.local.json` 34 → 5
+  wildcardů (venv-python/pip + WebSearch), mrtvé Mapper.exe/echo/rm render testy pryč; 7 hotových `[x]`
+  smazáno z TODO (všechny už v DONE = duplikáty). Cadence prahy ponechány (odůvodněno). [2026-05-21 sezení 16]
+- [x] **`%AUDIT:DOCS`** — `db_schema.md` „Vztah ke stávajícím skriptům" stale přepsán (produkční realita,
+  ne `detectors/` podadresář co nevznikl); `category` komentář +gray/white/red; `detection_method` reálné
+  názvy (`brown_line_v1`/`area_v1`); `DIARY.md` chronologie Sezení 12↔13. [2026-05-21 sezení 16]
+
 ## Combined area fill v masce + georef nález (sezení 15)
 
 - [x] **Combined area symboly v masce (`_resolve_area_fill`)** — `omap_mask._symbol_class` →

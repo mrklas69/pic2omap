@@ -32,7 +32,7 @@ import numpy as np
 from cli_utils import force_utf8_console
 from color_category import ColorCategory, classify_rgb
 from georef import _build_map_to_proj, _compute_coord_bbox, _parse_georef, _parse_pgw
-from omap_model import NO_COLOR, AreaSymbol, SymbolLibrary, SymbolType
+from omap_model import AreaSymbol, CombinedSymbol, SymbolBase, SymbolLibrary, SymbolType
 from omap_parser import iter_map_objects, omap_tag, parse_omap
 
 import xml.etree.ElementTree as ET
@@ -75,21 +75,39 @@ CLASS_PALETTE_BGR: dict[int, tuple[int, int, int]] = {
 }
 
 
-def _symbol_class(sym: AreaSymbol, library: SymbolLibrary) -> int | None:
+def _resolve_area_fill(
+    sym: SymbolBase, library: SymbolLibrary, sid_to_sym: dict[int, SymbolBase]
+) -> tuple[int, int] | None:
     """
-    Area symbol → class index přes jeho VÝPLŇOVOU barvu (inner_color) → ColorCategory.
+    Plocha → (class index, priorita barvy). None = symbol není kreslitelná plocha.
 
-    Záměrně jen inner_color, NE secondary (pattern). Symbol bez inner_color
-    (inner=-1, barva jen v <pattern>) není samostatná plocha — je to overlay vzor
-    přes jinou plochu (severky 601, šrafy 407). Rasterizovat ho jako plný polygon
-    by přemazal plochy pod ním (severky = obdélník přes celou mapu → 43 % modrá).
-    Vrací None → caller ho přeskočí.
+    AreaSymbol: třída + priorita z VÝPLŇOVÉ barvy (inner_color), záměrně NE secondary
+    (pattern). Symbol bez inner_color (inner=-1, barva jen v <pattern>) není samostatná
+    plocha — je to overlay vzor přes jinou plochu (severky 601, šrafy 407). Rasterizovat
+    ho jako plný polygon by přemazal plochy pod ním (severky = obdélník přes celou mapu →
+    43 % modrá). Vrací None → caller ho přeskočí.
+
+    CombinedSymbol (ISSprOM budova 526.1, canopy 526.2, voda 304/305, paved 529): geometrii
+    má objekt, ale výplňovou barvu až sub-symbol. Vezmi první AREA part s platnou výplní
+    (rekurze 1 úrovně). Bez toho se combined objekty (Garching: 404 = +33 % ploch) tiše
+    ztratí a cross-domain GT maska je neúplná.
+
+    Class i priorita pocházejí z jednoho zdroje (dřív rozdělené v build_area_mask).
     """
-    color = library.get_color(sym.inner_color_ref)
-    if color is None:
-        return None
-    category = classify_rgb(*color.rgb_tuple)
-    return CATEGORY_TO_CLASS.get(category)
+    if isinstance(sym, AreaSymbol):
+        color = library.get_color(sym.inner_color_ref)
+        if color is None:
+            return None
+        cls = CATEGORY_TO_CLASS.get(classify_rgb(*color.rgb_tuple))
+        return (cls, color.priority) if cls is not None else None
+    if isinstance(sym, CombinedSymbol):
+        for part_id in sym.parts:
+            part = sid_to_sym.get(part_id)
+            if isinstance(part, AreaSymbol):
+                fill = _resolve_area_fill(part, library, sid_to_sym)
+                if fill is not None:
+                    return fill
+    return None
 
 
 # --- Parsování geometrie objektu na prstence (outer + holes) ---
@@ -198,7 +216,8 @@ def build_area_mask(
     kreslí se dřív) → detailnější plochy navrch, věrně OOM stacku. Vrací (maska, stats).
     """
     library = parse_omap(omap_path)
-    sid_to_sym = {s.id: s for s in library.symbols if s.type == SymbolType.AREA}
+    # Všechny symboly (ne jen AREA) — combined symbol dohledává své AREA party odsud.
+    sid_to_sym = {s.id: s for s in library.symbols}
 
     mat, georef_desc = _coord_to_pixel_matrix(omap_path, pgw_path, png_w, png_h, pgw_width)
 
@@ -210,16 +229,15 @@ def build_area_mask(
         sym = sid_to_sym.get(int(obj.get("symbol", -1)))
         if sym is None:
             continue
-        cls = _symbol_class(sym, library)
-        if cls is None:
+        fill = _resolve_area_fill(sym, library, sid_to_sym)
+        if fill is None:
             skipped_no_class += 1
             continue
+        cls, priority = fill
         coords_elem = obj.find(omap_tag("coords"))
         if coords_elem is None or not coords_elem.text:
             continue
         rings = _coords_to_rings(_parse_coords(coords_elem.text))
-        color = library.get_color(sym.inner_color_ref)
-        priority = color.priority if color else 0
         todo.append((priority, cls, rings))
 
     mask = np.zeros((png_h, png_w), dtype=np.uint8)

@@ -161,9 +161,13 @@ PNG + .omap → omap_mask (mask z geometrie) → build_dataset (tiling 512) → 
 
 Full training runs on the GPU box ("mrkla"):
 
-1. zip `output/dataset` (~30 MB) and copy it over (or regenerate via `build_dataset.py`).
+1. zip `output/dataset` (~57 MB, 997 train tiles across 3 maps since sezení 17) and copy it over
+   (or regenerate via `build_dataset.py`).
 2. install `requirements-ml.txt` with a **CUDA** torch build (see the file header).
-3. `python train.py --epochs 40 --batch 16` → checkpoint at `output/checkpoints/best.pt`.
+3. `python train.py --epochs 40 --batch 16 --seed 42 --workers 4` → checkpoint at `output/checkpoints/best.pt`.
+
+A self-contained training runbook (transfer, baselines, what to expect) lives in `TODO.md` —
+the GPU box has its own session memory, so the repo carries the instructions.
 
 **Pilot verdict: U-Net learns.** Within-domain (Slovanka val) mean IoU **0.666**, dominant
 classes (bg/green/yellow) 0.91–0.95. Cross-domain (Garching test) looked like only 0.122 —
@@ -178,10 +182,14 @@ but that was **misleading, not "ML fails"**, and sezení 15 pinned down why:
   the fix, cross-domain mean IoU **0.106 → 0.340**, green **0.12 → 0.875**: the area-class
   generalization was hidden by a broken georef, not by the method.
 - What remains low (gray/black/brown) is a genuine ISOM↔ISSprOM class gap (the model knows
-  buildings as BLACK from forest ISOM; Garching is GRAY) plus a single training map.
+  buildings as BLACK from forest ISOM; Garching is GRAY) plus, until sezení 17, a single training map.
 
-Next: full GPU training (now with an honest cross-domain metric from the start), then more
-maps / domains. The method is sound.
+Sezení 17 added two more georeferenced forest maps to the training set (Bedřichovka + Blatná, both
+S-JTSK Krovák with a rotated `.pgw` — the georef pipeline generalized to a new CRS and raster rotation
+without code changes). The training split now spans 3 maps / 997 tiles and **contains gray/brown/black
+area pixels** (≈0 before), directly targeting the cross-domain class gap. Next: full GPU training on
+that richer set (honest cross-domain metric from the georef fix onward), then sprint/urban domains.
+The method is sound.
 
 ## Docs
 

@@ -59,11 +59,30 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
   loss, per-class IoU (smp.metrics), checkpoint best mIoU, bez Lightning. `requirements-ml.txt`
   (torch/smp/albumentations zvlášť, CPU/CUDA pokyny). Smoke-test CPU OK; **CPU sanity 5 epoch
   prokázal učení** (val mIoU 0.61, bg/green/yellow ~0.9). → DONE.
-- [ ] **Plný trénink na „mrkla"** (GPU) — přenést dataset (30 MB zip output/dataset) + instalovat
-  requirements-ml.txt s CUDA torch, `python train.py --epochs 40 --batch 16` → output/checkpoints/
-  best.pt, pak re-eval přes `eval.py`. Reprodukovatelné (`--seed`), `--workers`/`--threads` připravené.
-  **brown** vzácná třída chytá až po ~11 epochách (sezení 14, 15-epoch běh: 0→0,25) — 40 epoch by mělo
-  dotáhnout; pokud ne, class weight / oversample.
+- [ ] **Plný trénink na „mrkla" (GPU) — RUNBOOK** (self-contained: mrkla je jiný stroj
+  s vlastní/prázdnou memory, tahle poznámka nesmí spoléhat na memory tohoto klonu).
+  - **Přenos dat:** `output/dataset.zip` (~57 MB, 1081 dlaždic, sezení 17) **nebo** regenerovat:
+    `python build_dataset.py` (deterministické; `DATASET_MAPS` = Slovanka spatial + Bedrichovka +
+    Blatna train + Garching test). Rozbalit do `output/dataset/`.
+  - **Prostředí:** `pip install -r requirements-ml.txt` s **CUDA** torch buildem (viz hlavička
+    souboru — `--index-url` pro CUDA wheel). Torch NENÍ v `requirements.txt` (cv2 dev stack).
+  - **Trénink:** `python train.py --epochs 40 --batch 16 --seed 42 --workers 4` →
+    `output/checkpoints/best.pt` (best-mIoU checkpoint). GPU ~10–30 min/40 epoch.
+  - **Re-eval:** `python eval.py --split test` (cross-domain Garching) + `--split val`
+    (within-domain Slovanka). Triptych overlay foto|GT|predikce.
+  - **Baseline k porovnání** (15-epoch běh, JEN Slovanka v trainu, PO georef fixu — sezení 14/16):
+    within-domain val mIoU **0,666** (bg/green/yellow 0,91–0,95, blue 0,45, black 0,74, brown 0,00→0,25);
+    cross-domain test (Garching) mIoU **0,340**, green **0,875**, ale **gray/black/brown = 0,00**.
+  - **Co od tohoto běhu čekat (hypotéza sezení 17):** train teď má 3 mapy (997 dlaždic vs 234) a
+    **obsahuje gray 0,8 / brown 0,7 / black 0,9 %** (z Bedřichovky) — dřív ≈0. Garching test je
+    brown 33 % + gray 23 %, dřív nebylo čím trefit → tyhle třídy by měly z nuly vyrůst. **brown**
+    vzácná třída chytá až ~e11 (15-epoch běh 0→0,25); 40 epoch by mělo dotáhnout, jinak class
+    weight / oversample. Pozn.: gray v Bedřichovce = skála (ISOM), Garching gray = budovy (ISSprOM)
+    — stejná maska-třída, jiný kontext; jestli to pomůže cross-domain, je otevřená otázka.
+  - **Kontext z memory tohoto klonu** (mrkla ho jinak nemá): georef byl rozbitý jednotkovým bugem
+    `map_ref` (mm vs 1/1000 mm) → opraveno sezení 16, proto je cross-domain baseline teď 0,340 a ne
+    0,106; nízké gray/black/brown = reálný ISOM↔ISSprOM class gap (1 sprint mapa jen v testu), NE
+    georef. Detail: `docs/diary/2026-05-21.md` sezení 14–17.
 
 ## ML scale track — až po go/no-go pilotu
 
@@ -150,6 +169,10 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 - [ ] **imread_unicode i pro background/probes** — `pic2db.py:543`, `peak_visualizer.py:238`,
   `border_overlay.py:138` (mark `--background`) stále `cv2.imread` → selže na diakritice v cestě
   (jako Blatná). Drobné, izomorfní s fixem sezení 16 (omap_mask/build_dataset/separate_demo/detect).
+- [ ] **`imwrite_unicode` v `cli_utils`** (izomorfní s `imread_unicode`) — `cv2.imwrite(str(path))`
+  selže/zapíše mojibake na diakritice v cestě (odhaleno sezení 17: dataset dlaždice + scale_check
+  overlay). Helper `imencode`+`write_bytes`. Pak odstranit ASCII-name workaround v `build_dataset`
+  (`DATASET_MAPS` name) a opravit `build_dataset.py:146-147`. Drobné.
 - [ ] **`requirements.txt`** — explicitní seznam závislostí (numpy, opencv-python, scikit-image). Verze podle aktuálního pip freeze.
 - [ ] **Sprint scope** — sehnat oficiální `ISSprOM_2019-2.omap` template z OOM symbol sets distribuce. Bez něj nelze pokrýt sprint mapy.
 - [ ] **Test ve Slovanka palette** — Slovanka má jinou color paletu než forest sample (priority 19 = Blue vs Yellow). `color_category.py` overrides možná nejsou robustní napříč mapami. Validovat.

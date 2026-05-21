@@ -2,6 +2,21 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## Sezení 17 — scale track: georef validace + dataset rozšíření
+
+- [x] **Georef validace 3 nových párů (scale track)** — Blatná/Bedřichovka (S-JTSK Křovák, neg. origin)
+  + SampleMap (UTM z10), všechny **rotovaný `.pgw`** (skew členy). Reality-check bbox+centroid+overlay
+  (`output/scale_check.py`, poučení S16: ne jen oko). **Georef pipeline generalizuje na Křovák + rotaci
+  BEZ úpravy kódu** — projected CRS se ve složení `inv(m2p)@pgw` zkrátí, grivation (10,88/11,9/17°) se
+  vyruší s `.pgw` rotací. Bedřichovka/Blatná posun <0,3 %; SampleMap georef OK ale chudá na plochy
+  (liniová ISOM, 944/952 objektů = linie+body, ověřeno proti zdroji = NENÍ bug) → vynechána. [2026-05-21 sezení 17]
+- [x] **Dataset rozšířen 234 → 997 train dlaždic** — `build_dataset.DATASET_MAPS` +Bedrichovka +Blatna
+  (`split="train"`, ASCII name — `cv2.imwrite` selže na diakritice ve stemu; cesty diakritiku mít smí).
+  Regrese Slovanka (train 234 / val 62) + Garching (test 22) **bit-identická**. Integrita: 1081 dlaždic,
+  0 chybějících souborů. Train teď obsahuje **gray 0,8 / brown 0,7 / black 0,9 %** (z Bedřichovky, dřív
+  ≈0) — míří na S15/S16 cross-domain class gap (Garching test brown 33 % + gray 23 %). Zip 57 MB +
+  self-contained runbook do TODO (mrkla má jinou memory). [2026-05-21 sezení 17]
+
 ## Sezení 16 — projektový overlay + %AUDIT:DOCS + georef map_ref fix
 
 - [x] **Georef `map_ref` root-cause fix** — Garching maska/export posunutá o translation +142/+413 px

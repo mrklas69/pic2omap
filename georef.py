@@ -166,7 +166,9 @@ def _build_map_to_proj(geo: dict) -> np.ndarray:
     flip_y = np.array([[1, 0], [0, -1]])
     lin = s * rot @ flip_y
     proj_ref = np.array(geo["proj_ref"], dtype=float)
-    map_ref = np.array(geo["map_ref"], dtype=float)
+    # map_ref z <georeferencing> je v mm; object coords jsou 1/1000 mm → ×1000 do coord units
+    # (jinak se odečítá 1000× menší offset → translation posun masky/exportu, viz Garching).
+    map_ref = np.array(geo["map_ref"], dtype=float) * 1000.0
     # proj = lin @ (map - map_ref) + proj_ref = lin @ map + (proj_ref - lin @ map_ref)
     offset = proj_ref - lin @ map_ref
     return np.array([[lin[0, 0], lin[0, 1], offset[0]],

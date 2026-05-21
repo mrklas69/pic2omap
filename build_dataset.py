@@ -55,6 +55,27 @@ DATASET_MAPS: list[dict] = [
         "gap_frac": DEFAULT_GAP_FRAC,   # 5 % pás mezi train/val zahozen (žádný overlap leakage)
     },
     {
+        # Lesní mapa, S-JTSK Křovák + rotovaný .pgw (griv 10.88). Georef ověřen
+        # bbox/centroid/overlay (sezení 17, scale track) — posun <0.3 %. Celá do
+        # train (leakage hrozí jen train↔val TÉŽE mapy). ASCII name (cesta diakritiku
+        # mít smí — čte ji imread_unicode/ET; cv2.imwrite stemu diakritiku NE).
+        "name": "Bedrichovka",
+        "omap": "resources/Bedřichovka.omap",
+        "png": "resources/Bedřichovka.png",        # 9732x13843
+        "pgw": "resources/Bedřichovka.pgw",
+        "pgw_width": 9732,
+        "split": "train",
+    },
+    {
+        # Lesní mapa, S-JTSK Křovák EPSG (griv 11.9). Georef ověřen (sezení 17).
+        "name": "Blatna",
+        "omap": "resources/Blatná.omap",
+        "png": "resources/Blatná.png",             # 10532x8472
+        "pgw": "resources/Blatná.pgw",
+        "pgw_width": 10532,
+        "split": "train",
+    },
+    {
         "name": "Garching",
         "omap": "resources/complete map.omap",
         "png": "resources/complete map.png",       # 2480x3508 (sprint = jiná doména)

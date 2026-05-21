@@ -20,7 +20,7 @@ import cv2
 import numpy as np
 
 # UTF-8 stdout pro českou diakritiku ve Windows konzoli.
-from cli_utils import force_utf8_console
+from cli_utils import force_utf8_console, imread_unicode
 force_utf8_console()
 
 from color_category import (
@@ -56,7 +56,7 @@ def main(image_path_str: str, omap_path_str: str) -> None:
     print(f"  {len(library.colors)} barev v library, {len(profiles)} unikátních RGB")
 
     print(f"Načítám obraz: {image_path.name}")
-    image_bgr = cv2.imread(str(image_path))
+    image_bgr = imread_unicode(str(image_path))  # ne cv2.imread — diakritika v cestě
     if image_bgr is None:
         print("CHYBA: nelze načíst obraz", file=sys.stderr)
         sys.exit(1)

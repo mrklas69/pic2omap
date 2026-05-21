@@ -28,7 +28,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from cli_utils import force_utf8_console
+from cli_utils import force_utf8_console, imread_unicode
 from omap_mask import NUM_CLASSES, CLASS_NAMES, build_area_mask
 
 # Defaulty spatial splitu (single source of truth — DATASET_MAPS i _tile_split).
@@ -117,7 +117,7 @@ def build(out_dir: Path, tile: int, stride: int) -> None:
     split_stats: dict[str, dict] = {}
 
     for cfg in DATASET_MAPS:
-        png = cv2.imread(cfg["png"])
+        png = imread_unicode(cfg["png"])  # ne cv2.imread — diakritika v cestě (Blatná)
         if png is None:
             print(f"  [skip] nelze načíst {cfg['png']}")
             continue

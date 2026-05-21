@@ -123,7 +123,9 @@ def cmd_detect(args: argparse.Namespace) -> int:
     import cv2
     import numpy as np
 
-    img = cv2.imread(str(img_path), cv2.IMREAD_COLOR)
+    from cli_utils import imread_unicode
+
+    img = imread_unicode(str(img_path), cv2.IMREAD_COLOR)  # ne cv2.imread — diakritika v cestě
     if img is None:
         print(f"Nelze načíst obrázek: {img_path}", file=sys.stderr)
         return 1

@@ -29,7 +29,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from cli_utils import force_utf8_console
+from cli_utils import force_utf8_console, imread_unicode
 from color_category import ColorCategory, classify_rgb
 from georef import _build_map_to_proj, _compute_coord_bbox, _parse_georef, _parse_pgw
 from omap_model import AreaSymbol, CombinedSymbol, SymbolBase, SymbolLibrary, SymbolType
@@ -301,7 +301,7 @@ def main() -> None:
     args = ap.parse_args()
 
     omap_path = Path(args.omap)
-    png = cv2.imread(args.png)
+    png = imread_unicode(args.png)  # ne cv2.imread — selže na diakritice v cestě (Blatná)
     if png is None:
         raise SystemExit(f"Nelze načíst PNG: {args.png}")
     h, w = png.shape[:2]

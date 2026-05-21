@@ -48,7 +48,7 @@ def skeletonize_mask(mask: np.ndarray) -> np.ndarray:
         return np.zeros_like(mask)
     skel_bool = skeletonize(bool_mask)
     # Bool → uint8: True * 255 = 255, False * 255 = 0.
-    return (skel_bool.astype(np.uint8) * 255)
+    return skel_bool.astype(np.uint8) * 255
 
 
 def skeletonize_line_masks(

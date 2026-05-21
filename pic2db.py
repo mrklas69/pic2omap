@@ -5,13 +5,14 @@ Subcommands:
   detect  — spustí detekci symbolů, zapíše iter_N.json + 16-bit claim mask
   list    — vypíše objekty v DB (filtrovatelné --symbols)
   mark    — overlay objektů přes background (--with-ids pro popisky)
-  diff    — porovnání dvou iterací                                    [NOT IMPLEMENTED]
-  export  — db2omap serializace do OMAP XML                           [NOT IMPLEMENTED]
+  diff    — porovnání dvou iterací                                    [stub]
+  export  — db2omap serializace do OMAP XML
 
 Kanonický popis viz docs/db_schema.md.
 
-Stav (Sezení 6): `detect` orchestruje orientation_v1 + brown_line_v1 +
-area_v1 (GREEN, YELLOW). `list` + `mark` produkční. `diff` + `export` stuby.
+Stav: `detect` orchestruje orientation_v1 + brown_line_v1 + area_v1
+(GREEN/YELLOW/BLACK/GRAY) + point_v1 (brown/black/green). `list`, `mark`
+a `export` produkční. `diff` je zatím stub.
 
 Předpoklad pro `detect`: Stage 2 + Stage 3 výstupy musí existovat
 (`output/<sample>/{morphology,skeleton,components}/`). Spusť nejdřív
@@ -83,6 +84,17 @@ def _print_area_breakdown(label: str, objs: list, default: str) -> None:
         suffix = " (default)" if code == default else ""
         parts.append(f"{cnt}× {code}{suffix}")
     print(f"  {label}:    {len(objs):>4} objektů ({', '.join(parts)})")
+
+
+def _merge_claim(claim_mask, detector_mask) -> None:
+    """
+    Zapíše claimy detektoru do globální claim_mask jen tam, kde je dosud unclaimed
+    (claim_mask == 0). Dřívější claimy (brown line, předchozí kategorie) mají
+    prioritu — v reálné mapě je linie kreslená PŘES plochu, drží tedy svůj pixel.
+    Single source of truth pro conflict-resolution politiku napříč detektory.
+    """
+    write_zone = (detector_mask > 0) & (claim_mask == 0)
+    claim_mask[write_zone] = detector_mask[write_zone]
 
 
 # --- Verb: detect ---
@@ -181,10 +193,9 @@ def cmd_detect(args: argparse.Namespace) -> int:
             thin_code=thin_code,
             thick_code=thick_code,
         )
-        # Merge claim mask: kde detector claimed (nonzero), zapsat do globální mask.
-        # Pro v1 nejsou kolize (jen 1 detektor), do budoucna bude potřeba conflict resolution.
-        nonzero = brown_mask > 0
-        claim_mask[nonzero] = brown_mask[nonzero]
+        # Brown line je první detektor (claim_mask prázdná) — _merge_claim guard
+        # je tu no-op, ale držíme jednotnou cestu zápisu claimů.
+        _merge_claim(claim_mask, brown_mask)
         all_objects.extend(brown_objs)
         next_id += len(brown_objs)
         # Počítadla per kód: porovnáváme proti resolved thin/thick (Slovanka
@@ -194,18 +205,14 @@ def cmd_detect(args: argparse.Namespace) -> int:
         print(f"  brown_line_v1:    {len(brown_objs):>4} objektů "
               f"({n_thin:>3} × {thin_code}, {n_thick:>3} × {thick_code})")
 
-        # --- Erosion gully refinement (DISABLED) ---
-        # erosion_gully_v1 experimenty (crossing-only, endpoint blob, pointed cap)
-        # nedokázaly spolehlivě odlišit 109 od 102 na našem rozlišení.
-        # GT forest sample = jen 2 × 109, detektor over-claimed. Vyžaduje pozici-based
-        # check (sousedi 101) — odloženo na v2. Soubor erosion_gully_v1.py drží
-        # crossing_signal + pointed_cap_count helpery pro budoucí re-use.
-        # Viz memory `erosion-gully-vs-index-contour`.
+        # --- Erosion gully refinement (109) — odloženo na v2 ---
+        # Experimenty (crossing-only, endpoint blob, pointed cap) neodlišily 109 od
+        # 102 na našem rozlišení (forest GT jen 2× 109, over-claim). v2 = pozici-based
+        # check (sousedi 101). Detaily: memory `erosion-gully-vs-index-contour`.
 
-    # --- Area detector v1/v2 (green + yellow solid fills) ---
-    # area_v1.detect je parametrizovaný kategorií, voláme 2× per category.
-    # Filter logika: aktivovat green pokud bez filtru NEBO filter obsahuje
-    # nějaký green code (406/408/410). Yellow analogicky (401/403).
+    # --- Area detektor v1/v2 (solid fills per ColorCategory) ---
+    # Tabulka kategorií: (ColorCategory, set ISOM kódů pro --symbols filtr).
+    # Pořadí = pořadí claimování (dřívější drží pixel, viz _merge_claim).
     from area_v1 import (
         detect as detect_area,
         DEFAULT_SYMBOL_PER_CATEGORY,
@@ -214,154 +221,80 @@ def cmd_detect(args: argparse.Namespace) -> int:
     )
     from color_category import ColorCategory
 
-    # --- v2 disambiguation setup ---
-    # Library jsme už parsovali výš (pro brown line code resolution). Tady jen
-    # postavíme priority → ISOM kód mapping per kategorie. Bez --omap (library
-    # je None) zůstává v1 chování (default kód per kategorie).
-    green_priority_map: dict[int, str] | None = None
-    yellow_priority_map: dict[int, str] | None = None
-    black_priority_map: dict[int, str] | None = None
-    gray_priority_map: dict[int, str] | None = None
-    # Template-aware default kódy (Slovanka "403.0" vs forest sample "403").
-    # None = caller nechá area_v1 použít holý DEFAULT_SYMBOL_PER_CATEGORY.
-    green_default: str | None = None
-    yellow_default: str | None = None
-    black_default: str | None = None
-    gray_default: str | None = None
+    area_config = [
+        (ColorCategory.GREEN,  {"406", "408", "410"}),
+        (ColorCategory.YELLOW, {"401", "403"}),
+        # BLACK: default 526; Building/Settlement/OOB sdílí priority (AMBIGUOUS),
+        # disambiguation je nerozliší — per-shape heuristika = budoucí TODO.
+        (ColorCategory.BLACK,  {"526", "527", "527.1", "528"}),
+        # GRAY: "Black 50-65%" fill budov (526.1.1) dominuje na sprint mapách,
+        # canopy 526.2.1, bare rock 212. Disambiguace prio 6→budova / 9→canopy,
+        # default 526 → resolve povýší na combined 526.1. Vyšší MIN_AREA filtruje
+        # anti-alias gray lemy kolem černých prvků (viz area_v1 komentář).
+        (ColorCategory.GRAY,   {"526", "526.1", "526.2", "212"}),
+    ]
+
+    # v2 disambiguation setup: priority → ISOM kód mapping + template-aware default
+    # kód per kategorie (Slovanka "403.0" vs forest "403"). Bez --omap (library
+    # None) zůstává v1 chování — holý DEFAULT_SYMBOL_PER_CATEGORY v area_v1.
+    priority_maps: dict[ColorCategory, dict[int, str] | None] = {c: None for c, _ in area_config}
+    defaults: dict[ColorCategory, str | None] = {c: None for c, _ in area_config}
     if library is not None:
         from color_profile import build_color_profiles
         from color_category import build_category_map_with_overrides
 
         profiles = build_color_profiles(library)
         category_map = build_category_map_with_overrides(profiles)
-        green_priority_map = build_priority_to_area_code(
-            library, ColorCategory.GREEN, category_map,
-        )
-        yellow_priority_map = build_priority_to_area_code(
-            library, ColorCategory.YELLOW, category_map,
-        )
-        black_priority_map = build_priority_to_area_code(
-            library, ColorCategory.BLACK, category_map,
-        )
-        gray_priority_map = build_priority_to_area_code(
-            library, ColorCategory.GRAY, category_map,
-        )
-        green_default = resolve_default_area_code(library, ColorCategory.GREEN, category_map)
-        yellow_default = resolve_default_area_code(library, ColorCategory.YELLOW, category_map)
-        black_default = resolve_default_area_code(library, ColorCategory.BLACK, category_map)
-        gray_default = resolve_default_area_code(library, ColorCategory.GRAY, category_map)
-        print(f"  v2 disambiguation: {len(green_priority_map)} GREEN / "
-              f"{len(yellow_priority_map)} YELLOW / {len(black_priority_map)} BLACK / "
-              f"{len(gray_priority_map)} GRAY priorities z {args.omap.name}")
-        print(f"  area defaults:    GREEN={green_default} YELLOW={yellow_default} "
-              f"BLACK={black_default} GRAY={gray_default}")
+        for cat, _ in area_config:
+            priority_maps[cat] = build_priority_to_area_code(library, cat, category_map)
+            defaults[cat] = resolve_default_area_code(library, cat, category_map)
+        print("  v2 disambiguation: " + " / ".join(
+            f"{len(priority_maps[c])} {c.value.upper()}" for c, _ in area_config)
+            + f" priorities z {args.omap.name}")
+        print("  area defaults:    " + " ".join(
+            f"{c.value.upper()}={defaults[c]}" for c, _ in area_config))
 
-    # GREEN areas
-    green_codes = {"406", "408", "410"}
-    if symbols_filter is None or symbols_filter & green_codes:
-        green_objs, green_mask = detect_area(
+    for cat, codes in area_config:
+        if symbols_filter is not None and not (symbols_filter & codes):
+            continue
+        objs, mask = detect_area(
             out_dir=out_dir, image_shape=(h, w),
-            category=ColorCategory.GREEN,
+            category=cat,
             starting_id=next_id, iteration=args.iter,
             map_orientation_deg=orientation_deg,
-            priority_to_code=green_priority_map,
-            default_code=green_default,
+            priority_to_code=priority_maps[cat],
+            default_code=defaults[cat],
         )
-        nz = green_mask > 0
-        # Konflikt s brown line: jen kde claim_mask je 0 (unclaimed). Brown line
-        # je nakreslena PŘES area v reálné mapě, takže její claimy mají prioritu.
-        write_zone = nz & (claim_mask == 0)
-        claim_mask[write_zone] = green_mask[write_zone]
-        all_objects.extend(green_objs)
-        next_id += len(green_objs)
-        _print_area_breakdown("green_area_v1", green_objs,
-                              default=green_default or DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.GREEN])
-
-    # YELLOW areas
-    yellow_codes = {"401", "403"}
-    if symbols_filter is None or symbols_filter & yellow_codes:
-        yellow_objs, yellow_mask = detect_area(
-            out_dir=out_dir, image_shape=(h, w),
-            category=ColorCategory.YELLOW,
-            starting_id=next_id, iteration=args.iter,
-            map_orientation_deg=orientation_deg,
-            priority_to_code=yellow_priority_map,
-            default_code=yellow_default,
+        _merge_claim(claim_mask, mask)
+        all_objects.extend(objs)
+        next_id += len(objs)
+        _print_area_breakdown(
+            f"{cat.value}_area_v1", objs,
+            default=defaults[cat] or DEFAULT_SYMBOL_PER_CATEGORY[cat],
         )
-        nz = yellow_mask > 0
-        write_zone = nz & (claim_mask == 0)
-        claim_mask[write_zone] = yellow_mask[write_zone]
-        all_objects.extend(yellow_objs)
-        next_id += len(yellow_objs)
-        _print_area_breakdown("yellow_area_v1", yellow_objs,
-                              default=yellow_default or DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.YELLOW])
-
-    # BLACK areas (526 Building + 527.1 Settlement + 528 OOB).
-    # Default 526 — všechny solid black area sdílí priority 1 (AMBIGUOUS),
-    # disambiguation v2 je nerozliší. Per-shape heuristika (Settlement = kruh,
-    # Building = obdélník) by mohla pomoct v budoucnu.
-    black_codes = {"526", "527", "527.1", "528"}
-    if symbols_filter is None or symbols_filter & black_codes:
-        black_objs, black_mask = detect_area(
-            out_dir=out_dir, image_shape=(h, w),
-            category=ColorCategory.BLACK,
-            starting_id=next_id, iteration=args.iter,
-            map_orientation_deg=orientation_deg,
-            priority_to_code=black_priority_map,
-            default_code=black_default,
-        )
-        nz = black_mask > 0
-        write_zone = nz & (claim_mask == 0)
-        claim_mask[write_zone] = black_mask[write_zone]
-        all_objects.extend(black_objs)
-        next_id += len(black_objs)
-        _print_area_breakdown("black_area_v1", black_objs,
-                              default=black_default or DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.BLACK])
-
-    # GRAY areas (526 Building dominuje na sprint/urbánních mapách).
-    # Gray = "Black 50-65%" fill budov (526.1.1), "Black 20%" canopy (526.2.1),
-    # bare rock (212). Disambiguace prio 6 → budova, prio 9 → canopy; default
-    # 526 → resolve povýší na combined 526.1. Vyšší MIN_AREA odfiltruje
-    # anti-alias gray lemy kolem černých prvků (viz area_v1 komentář).
-    gray_codes = {"526", "526.1", "526.2", "212"}
-    if symbols_filter is None or symbols_filter & gray_codes:
-        gray_objs, gray_mask = detect_area(
-            out_dir=out_dir, image_shape=(h, w),
-            category=ColorCategory.GRAY,
-            starting_id=next_id, iteration=args.iter,
-            map_orientation_deg=orientation_deg,
-            priority_to_code=gray_priority_map,
-            default_code=gray_default,
-        )
-        nz = gray_mask > 0
-        write_zone = nz & (claim_mask == 0)
-        claim_mask[write_zone] = gray_mask[write_zone]
-        all_objects.extend(gray_objs)
-        next_id += len(gray_objs)
-        _print_area_breakdown("gray_area_v1", gray_objs,
-                              default=gray_default or DEFAULT_SYMBOL_PER_CATEGORY[ColorCategory.GRAY])
 
     # --- Point detector v1 (bodové symboly) ---
     # Běží PO area/line: body jsou nejmenší a nejvíc šum-podobné (IDEAS fáze B),
     # claimují jen unclaimed pixely. Point bucket je silně zašuměný → v1 over-claimuje
     # (memory sparse-gt-naive-detector-trap), slouží jako odrazový můstek pro ladění.
     from point_v1 import DEFAULT_SYMBOL_PER_CATEGORY as POINT_DEFAULTS
-    from point_v1 import detect as detect_point
+    from point_v1 import detect as detect_point, resolve_default_point_code
 
     point_codes = {"112", "113", "115", "116", "536", "532", "540", "418", "419"}
     if symbols_filter is None or symbols_filter & point_codes:
         for pcat in (ColorCategory.BROWN, ColorCategory.BLACK, ColorCategory.GREEN):
+            # Template-aware default (izomorfní s area). Bez --omap → None → holý default.
+            pt_default = resolve_default_point_code(library, pcat) if library is not None else None
             pt_objs, pt_mask = detect_point(
                 out_dir=out_dir, image_shape=(h, w),
                 category=pcat, starting_id=next_id, iteration=args.iter,
+                default_code=pt_default,
             )
-            nz = pt_mask > 0
-            write_zone = nz & (claim_mask == 0)
-            claim_mask[write_zone] = pt_mask[write_zone]
+            _merge_claim(claim_mask, pt_mask)
             all_objects.extend(pt_objs)
             next_id += len(pt_objs)
             print(f"  point_v1 {pcat.value:6}: {len(pt_objs):>4} objektů "
-                  f"(default {POINT_DEFAULTS[pcat]})")
+                  f"(default {pt_default or POINT_DEFAULTS[pcat]})")
 
     # Post-filter na --symbols (KISS — detector spustí vše, filter až po).
     # Důvod: detektory budou produkovat víc symbol_codes (101 + 102 z jednoho běhu),

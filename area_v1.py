@@ -37,6 +37,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from cli_utils import imread_unicode
 from color_category import ColorCategory
 from db_model import MapObject
 from omap_model import NO_COLOR, AreaSymbol, CombinedSymbol, SymbolLibrary, SymbolType
@@ -378,12 +379,7 @@ def load_priority_masks(priority_dir: Path) -> dict[int, np.ndarray]:
             prio = int(num_str)
         except ValueError:
             continue  # Neobvyklý filename, ignoruj.
-        # Read bytes přes Python fopen (UTF-8 safe na Windows), pak imdecode.
-        try:
-            data = np.frombuffer(png_path.read_bytes(), dtype=np.uint8)
-        except OSError:
-            continue
-        mask = cv2.imdecode(data, cv2.IMREAD_GRAYSCALE)
+        mask = imread_unicode(png_path, cv2.IMREAD_GRAYSCALE)
         if mask is None:
             continue
         masks[prio] = mask
@@ -501,7 +497,7 @@ def detect(
             f"Spusť `python stage3_demo.py <obrázek>` první."
         )
 
-    mask = cv2.imread(str(area_mask_path), cv2.IMREAD_GRAYSCALE)
+    mask = imread_unicode(area_mask_path, cv2.IMREAD_GRAYSCALE)
     # Binarizace pro jistotu (cat_*_area.png by mělo být 0/255, ale safety net).
     mask_bin = (mask > 0).astype(np.uint8) * 255
 

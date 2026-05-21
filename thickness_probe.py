@@ -25,7 +25,6 @@ CLI:
 """
 
 import argparse
-import sys
 from pathlib import Path
 
 import cv2

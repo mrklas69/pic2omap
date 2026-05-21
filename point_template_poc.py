@@ -28,28 +28,29 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from omap_parser import _tag
+from cli_utils import imread_unicode
+from omap_parser import omap_tag
 
 
 def parse_point_geometry(omap_path: Path, code: str):
     """Geometrie bodového symbolu: list (kind, coords[(x,y)], line_width) z OMAP."""
     root = ET.parse(omap_path).getroot()
-    for sym in root.iter(_tag("symbol")):
+    for sym in root.iter(omap_tag("symbol")):
         if sym.get("code") != code:
             continue
-        ps = sym.find(_tag("point_symbol"))
+        ps = sym.find(omap_tag("point_symbol"))
         if ps is None:
             return None
         elements = []
-        for el in ps.findall(_tag("element")):
-            sub = el.find(_tag("symbol"))
-            obj = el.find(_tag("object"))
+        for el in ps.findall(omap_tag("element")):
+            sub = el.find(omap_tag("symbol"))
+            obj = el.find(omap_tag("object"))
             if sub is None or obj is None:
                 continue
             body = list(sub)[0] if len(sub) else None
             kind = body.tag.split("}")[1] if body is not None else "?"
             lw = int(body.get("line_width", 0)) if body is not None else 0
-            coords_el = obj.find(_tag("coords"))
+            coords_el = obj.find(omap_tag("coords"))
             pts = []
             if coords_el is not None and coords_el.text:
                 for a, b in re.findall(r"(-?\d+) (-?\d+)(?: \d+)?", coords_el.text):
@@ -126,10 +127,7 @@ def nms(peaks, min_dist):
 def main():
     code = sys.argv[1] if len(sys.argv) > 1 else "536"
     omap = Path("resources/forest sample.omap")
-    black = cv2.imdecode(
-        np.frombuffer(Path("output/forest sample/category/cat_black.png").read_bytes(), np.uint8),
-        cv2.IMREAD_GRAYSCALE,
-    )
+    black = imread_unicode(Path("output/forest sample/category/cat_black.png"), cv2.IMREAD_GRAYSCALE)
     black01 = (black > 0).astype(np.float32)
 
     elements = parse_point_geometry(omap, code)
@@ -156,7 +154,7 @@ def main():
     kept = nms(peaks, min_dist=max(6, tw))
     print(f"Kandidáti (score >= {thr:.3f} = 80 % top), po NMS: {len(kept)}")
 
-    img = cv2.imread("resources/forest sample.png")
+    img = imread_unicode(Path("resources/forest sample.png"))
     h, w = black01.shape
     for i, (x, y, s) in enumerate(sorted(kept, key=lambda p: -p[2])):
         xloc, yloc = 10 * x / w, 10 * (1 - y / h)

@@ -33,6 +33,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from cli_utils import imread_unicode
 from color_category import ColorCategory
 from db_model import MapObject
 from omap_model import LineSymbol, SymbolLibrary, SymbolType
@@ -136,8 +137,8 @@ def detect(
         )
 
     # Načtení masek. peak_visualizer očekává binární 0/255 vstup.
-    skeleton = cv2.imread(str(skeleton_path), cv2.IMREAD_GRAYSCALE)
-    clean = cv2.imread(str(clean_path), cv2.IMREAD_GRAYSCALE)
+    skeleton = imread_unicode(skeleton_path, cv2.IMREAD_GRAYSCALE)
+    clean = imread_unicode(clean_path, cv2.IMREAD_GRAYSCALE)
     # Astype na uint8 + *255 zaručí, že hodnoty jsou {0, 255} (jistota pro
     # connectedComponents, který přijímá thresholdovaný vstup).
     skeleton_bin = (skeleton > 0).astype(np.uint8) * 255

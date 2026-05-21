@@ -31,17 +31,11 @@ import numpy as np
 
 from cli_utils import force_utf8_console
 from color_category import ColorCategory, classify_rgb
-from db2omap import _build_map_to_proj, _compute_coord_bbox, _parse_georef, _parse_pgw
+from georef import _build_map_to_proj, _compute_coord_bbox, _parse_georef, _parse_pgw
 from omap_model import NO_COLOR, AreaSymbol, SymbolLibrary, SymbolType
-from omap_parser import parse_omap
+from omap_parser import iter_map_objects, omap_tag, parse_omap
 
 import xml.etree.ElementTree as ET
-
-OMAP_NS = "http://openorienteering.org/apps/mapper/xml/v2"
-
-
-def _tag(name: str) -> str:
-    return f"{{{OMAP_NS}}}{name}"
 
 
 # --- OMAP coord flagy (core/map_coord.h) ---
@@ -212,7 +206,7 @@ def build_area_mask(
     root = ET.parse(omap_path).getroot()
     todo: list[tuple[int, int, list]] = []  # (priority, class_idx, rings)
     skipped_no_class = 0
-    for obj in root.findall(f".//{_tag('objects')}/{_tag('object')}"):
+    for obj in iter_map_objects(root):
         sym = sid_to_sym.get(int(obj.get("symbol", -1)))
         if sym is None:
             continue
@@ -220,7 +214,7 @@ def build_area_mask(
         if cls is None:
             skipped_no_class += 1
             continue
-        coords_elem = obj.find(_tag("coords"))
+        coords_elem = obj.find(omap_tag("coords"))
         if coords_elem is None or not coords_elem.text:
             continue
         rings = _coords_to_rings(_parse_coords(coords_elem.text))
@@ -273,8 +267,8 @@ def overlay_on_image(png: np.ndarray, mask: np.ndarray, alpha: float = 0.45) -> 
     return out
 
 
-# --- Class name helper pro report ---
-_CLASS_NAME = {v: k.value for k, v in CATEGORY_TO_CLASS.items()}
+# --- Class name helper pro report (veřejné — importuje build_dataset/train) ---
+CLASS_NAMES = {v: k.value for k, v in CATEGORY_TO_CLASS.items()}
 
 
 def main() -> None:
@@ -310,7 +304,7 @@ def main() -> None:
     print(f"  pokrytí ploch:")
     tot = stats["total_px"]
     for cls, cnt in sorted(stats["class_counts"].items(), key=lambda t: -t[1]):
-        print(f"    {cls} {_CLASS_NAME.get(cls, '?'):8} {cnt:>12,} px  ({100*cnt/tot:5.1f} %)")
+        print(f"    {cls} {CLASS_NAMES.get(cls, '?'):8} {cnt:>12,} px  ({100*cnt/tot:5.1f} %)")
     print(f"  overlay:           {out_path}")
 
 

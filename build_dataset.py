@@ -5,8 +5,9 @@ Komponenta #2 ML pilotu. Produkuje DETERMINISTICKÉ dlaždice (image + mask) + m
 Augmentace zde NENÍ — patří na trénink (on-the-fly v albumentations, víc diverzity,
 menší dataset). Builder běží na CPU (tady), trénink na GPU ("mrkla").
 
-Split po CELÝCH mapách (ne dlaždice ze stejné mapy → leakage): train = Slovanka
-(lesní, nejvíc dat), val = Garching (jiná mapa). Forest (malý, bbox-fit) vynechán.
+Split bez leakage (dlaždice ze stejné mapy nesmí být v train i val zároveň): pilot
+dělí Slovanku PROSTOROVĚ (horní pás = train, spodní = within-domain val, mezi nimi
+gap), Garching jde celý do `test` (cross-domain). Forest (malý, bbox-fit) vynechán.
 
 Výstup:
     output/dataset/<split>/images/<map>_y_x.png   (RGB dlaždice)
@@ -28,7 +29,11 @@ import cv2
 import numpy as np
 
 from cli_utils import force_utf8_console
-from omap_mask import NUM_CLASSES, _CLASS_NAME, build_area_mask
+from omap_mask import NUM_CLASSES, CLASS_NAMES, build_area_mask
+
+# Defaulty spatial splitu (single source of truth — DATASET_MAPS i _tile_split).
+DEFAULT_VAL_FRAC = 0.25   # spodní podíl výšky → val
+DEFAULT_GAP_FRAC = 0.05   # pás mezi train/val zahozen (proti leakage na hranici)
 
 # Konfigurace zdrojových map. pgw_width = šířka PNG, ke které .pgw patří (kvůli
 # škálování, když rasterizujeme na downscale render).
@@ -46,8 +51,8 @@ DATASET_MAPS: list[dict] = [
         "pgw": "resources/Slovanka2016.pgw",
         "pgw_width": 14094,
         "split": "spatial",
-        "val_frac": 0.25,   # spodních 25 % výšky = val
-        "gap_frac": 0.05,   # 5 % pás mezi train/val zahozen (žádný overlap leakage)
+        "val_frac": DEFAULT_VAL_FRAC,   # spodních 25 % výšky = val
+        "gap_frac": DEFAULT_GAP_FRAC,   # 5 % pás mezi train/val zahozen (žádný overlap leakage)
     },
     {
         "name": "Garching",
@@ -64,8 +69,8 @@ def _tile_split(cfg: dict, y: int, tile: int, h: int) -> str | None:
     """Určí split dlaždice. Pro 'spatial' podle y (train horní / gap / val spodní)."""
     if cfg["split"] != "spatial":
         return cfg["split"]
-    val_min = h * (1 - cfg.get("val_frac", 0.25))
-    train_max = val_min - h * cfg.get("gap_frac", 0.05)
+    val_min = h * (1 - cfg.get("val_frac", DEFAULT_VAL_FRAC))
+    train_max = val_min - h * cfg.get("gap_frac", DEFAULT_GAP_FRAC)
     if y + tile <= train_max:
         return "train"
     if y >= val_min:
@@ -162,7 +167,7 @@ def build(out_dir: Path, tile: int, stride: int) -> None:
         ss["maps"] = sorted(ss["maps"])
     manifest = {
         "tile_size": tile, "stride": stride, "num_classes": NUM_CLASSES,
-        "class_names": {0: "background", **_CLASS_NAME},
+        "class_names": {0: "background", **CLASS_NAMES},
         "splits": split_stats, "tiles": manifest_tiles,
     }
     (out_dir / "manifest.json").write_text(
@@ -173,7 +178,7 @@ def build(out_dir: Path, tile: int, stride: int) -> None:
         tot = sum(ss["class_px"].values()) or 1
         print(f"  [{split}] mapy={ss['maps']} dlaždic={ss['num_tiles']}")
         for c, n in sorted(ss["class_px"].items(), key=lambda t: -t[1]):
-            print(f"      {c} {_CLASS_NAME.get(c, '?'):8} {n:>13,} px ({100*n/tot:5.1f} % plochy)")
+            print(f"      {c} {CLASS_NAMES.get(c, '?'):8} {n:>13,} px ({100*n/tot:5.1f} % plochy)")
     print(f"  manifest:          {out_dir / 'manifest.json'}")
 
 

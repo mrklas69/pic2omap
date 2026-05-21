@@ -45,12 +45,7 @@ from omap_model import (
     SymbolLibrary,
     SymbolType,
 )
-from omap_parser import OMAP_NS, parse_omap
-
-
-def _tag(name: str) -> str:
-    """Plné jméno OMAP XML tagu s namespace (lokální helper, DRY s omap_parser)."""
-    return f"{{{OMAP_NS}}}{name}"
+from omap_parser import OMAP_NS, iter_map_objects, omap_tag, parse_omap
 
 
 # --- Mapování symbol → (ComponentType, color_ref) ---
@@ -191,12 +186,8 @@ def build_ground_truth(
         dict[int, int],
     ] = defaultdict(lambda: defaultdict(int))
 
-    # POZOR: hledáme jen <object> v <objects> sekci (skutečné mapové objekty).
-    # ".//object" by chytlo i 134 phantom <object> uvnitř <symbols> definic —
-    # to jsou template geometrie patternů/elementů (např. souřadnice kruhu pro
-    # 115 Depression, čar pro 418 Special vegetation feature), ne mapové objekty.
-    # XPath ".//objects/object" = <object> jako přímé děti <objects> kontejneru.
-    for obj in root.findall(f".//{_tag('objects')}/{_tag('object')}"):
+    # iter_map_objects odfiltruje phantom <object> v <symbols> definicích (viz docstring).
+    for obj in iter_map_objects(root):
         sid = int(obj.get("symbol", -1))
 
         # Krok 1+2: symbol=-1 nebo neznámý ID → skip s počítadlem.
@@ -579,7 +570,7 @@ def _object_centroid(obj_elem) -> tuple[float, float] | None:
     """
     import re
 
-    coords_elem = obj_elem.find(_tag("coords"))
+    coords_elem = obj_elem.find(omap_tag("coords"))
     if coords_elem is None or not coords_elem.text:
         return None
     nums = re.findall(r"(-?\d+) (-?\d+)(?: \d+)?", coords_elem.text)
@@ -601,7 +592,7 @@ def parse_gt_objects(omap_path: Path, library: SymbolLibrary) -> list[GTObject]:
 
     objs: list[GTObject] = []
     gid = 0
-    for obj in root.findall(f".//{_tag('objects')}/{_tag('object')}"):
+    for obj in iter_map_objects(root):
         sid = int(obj.get("symbol", -1))
         if sid < 0 or sid not in sid_to_symbol:
             continue
@@ -813,7 +804,7 @@ def main() -> None:
         db_counts = db_symbol_counts(snap)
         print(format_per_symbol_table(args.omap_file, gt, db_counts, iteration, library))
         if args.csv_dir is not None:
-            from db2omap import _compute_coord_bbox
+            from georef import _compute_coord_bbox
 
             args.csv_dir.mkdir(parents=True, exist_ok=True)
             # SUMA: per ISOM kód (GT vs DB counts) — hlavní spolehlivá metrika.

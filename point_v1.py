@@ -36,8 +36,10 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from cli_utils import imread_unicode
 from color_category import ColorCategory
 from db_model import MapObject
+from omap_model import SymbolLibrary
 
 
 # Default ISOM kód per kategorie — nejčastější bodový symbol té barvy ve forest GT.
@@ -71,6 +73,21 @@ MAX_ASPECT_RATIO = 2.5
 
 # Confidence — point detekce je nejistá (vysoký over-claim), nízká hodnota.
 CONFIDENCE = 0.40
+
+
+def resolve_default_point_code(library: SymbolLibrary, category: ColorCategory) -> str | None:
+    """
+    Template-aware default kód bodu: v library najde symbol, jehož kód je base
+    DEFAULT_SYMBOL_PER_CATEGORY[category], případně se suffixem (Slovanka "115.0").
+    Vrací None, když library takový symbol nemá → caller nechá holý default.
+    Izomorfní s area_v1.resolve_default_area_code (caller resolvuje, detektor nezná library).
+    """
+    import re
+    base = DEFAULT_SYMBOL_PER_CATEGORY.get(category)
+    if base is None:
+        return None
+    pat = re.compile(rf"^{re.escape(base)}(\.\d+)*$")
+    return next((s.code for s in library.symbols if pat.match(s.code)), None)
 
 
 def detect(
@@ -112,9 +129,7 @@ def detect(
             f"Spusť `python stage3_demo.py <obrázek>` první."
         )
 
-    # cv2.imread na Windows neumí UTF-8 cesty → načti přes Path.read_bytes + imdecode.
-    data = np.frombuffer(point_mask_path.read_bytes(), dtype=np.uint8)
-    mask = cv2.imdecode(data, cv2.IMREAD_GRAYSCALE)
+    mask = imread_unicode(point_mask_path, cv2.IMREAD_GRAYSCALE)
     mask_bin = (mask > 0).astype(np.uint8) * 255
 
     n_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask_bin, connectivity=8)

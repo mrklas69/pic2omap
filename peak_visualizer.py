@@ -31,6 +31,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from cli_utils import imread_unicode
+
 
 # Peak rozhraní — empirické thresholdy z probe na forest sample.
 # Pokud probe ukáže jiný histogram (jiné DPI / sample / kategorie), upravit.
@@ -206,8 +208,8 @@ def main() -> None:
     if not clean_path.exists():
         raise SystemExit(f"Clean mask neexistuje: {clean_path}")
 
-    skeleton = cv2.imread(str(skeleton_path), cv2.IMREAD_GRAYSCALE)
-    clean = cv2.imread(str(clean_path), cv2.IMREAD_GRAYSCALE)
+    skeleton = imread_unicode(skeleton_path, cv2.IMREAD_GRAYSCALE)
+    clean = imread_unicode(clean_path, cv2.IMREAD_GRAYSCALE)
     skeleton_bin = (skeleton > 0).astype(np.uint8) * 255
     clean_bin = (clean > 0).astype(np.uint8) * 255
 

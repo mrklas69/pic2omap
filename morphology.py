@@ -89,6 +89,8 @@ def clean_mask(mask: np.ndarray, params: MorphParams) -> np.ndarray:
 
     Pořadí: nejdřív opening (odstraní šum), pak closing (zaplní díry).
     Důvod: closing před opening by mohl rozšířit šum předtím, než ho odstraníme.
+    Pozn.: closing je v aktuální CATEGORY_PARAMS globálně vypnutý (close_kernel=0);
+    krok zůstává v kódu pro budoucí per-category ladění.
     """
     result = mask
     if params.open_kernel > 0:

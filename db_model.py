@@ -205,10 +205,13 @@ if __name__ == "__main__":
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
         tmp_path = Path(f.name)
 
-    sample.save(tmp_path)
-    loaded = DBSnapshot.load(tmp_path)
+    try:
+        sample.save(tmp_path)
+        loaded = DBSnapshot.load(tmp_path)
 
-    # Dataclasses mají __eq__ z dataclass dekorátoru — porovnání po polích.
-    assert loaded == sample, f"Round-trip mismatch!\n  orig:   {sample}\n  loaded: {loaded}"
-    print(f"OK — JSON round-trip passed ({tmp_path})")
-    print(f"   objects: {len(loaded.objects)}, non_map: {len(loaded.non_map_elements)}")
+        # Dataclasses mají __eq__ z dataclass dekorátoru — porovnání po polích.
+        assert loaded == sample, f"Round-trip mismatch!\n  orig:   {sample}\n  loaded: {loaded}"
+        print("OK — JSON round-trip passed")
+        print(f"   objects: {len(loaded.objects)}, non_map: {len(loaded.non_map_elements)}")
+    finally:
+        tmp_path.unlink(missing_ok=True)

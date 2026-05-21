@@ -58,7 +58,7 @@ def main(image_path_str: str, omap_path_str: str) -> None:
     print(f"Načítám obraz: {image_path.name}")
     image_bgr = cv2.imread(str(image_path))
     if image_bgr is None:
-        print(f"CHYBA: nelze načíst obraz", file=sys.stderr)
+        print("CHYBA: nelze načíst obraz", file=sys.stderr)
         sys.exit(1)
     h, w = image_bgr.shape[:2]
     print(f"  rozlišení: {w}x{h} ({w * h:,} pixelů)")

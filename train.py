@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 from pathlib import Path
 
 import cv2
@@ -168,7 +169,17 @@ def train_one_epoch(model, loader, loss_fn, optimizer, device) -> float:
     return total / max(len(loader), 1)
 
 
+def set_seed(seed: int) -> None:
+    """Fixuje RNG (python/numpy/torch) pro reprodukovatelný trénink — init vah,
+    augmentace i shuffle. CUDA seed pokrývá i GPU běh na „mrkla"."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+
 def fit(args) -> None:
+    set_seed(args.seed)
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
     manifest_path = Path(args.dataset) / "manifest.json"
     class_names = {int(k): v for k, v in
@@ -178,7 +189,10 @@ def fit(args) -> None:
     val_limit = 4 if args.smoke else None
     train_ds = SegDataset(manifest_path, "train", build_train_aug(), limit)
     val_ds = SegDataset(manifest_path, "val", build_eval_aug(), val_limit)
-    train_loader = DataLoader(train_ds, batch_size=args.batch, shuffle=True, num_workers=args.workers)
+    # Generator se seedem → reprodukovatelné pořadí shuffle napříč běhy.
+    loader_gen = torch.Generator().manual_seed(args.seed)
+    train_loader = DataLoader(train_ds, batch_size=args.batch, shuffle=True,
+                              num_workers=args.workers, generator=loader_gen)
     val_loader = DataLoader(val_ds, batch_size=args.batch, shuffle=False, num_workers=args.workers)
 
     model = build_model(args.encoder).to(device)
@@ -219,6 +233,7 @@ def main() -> None:
     ap.add_argument("--batch", type=int, default=8)
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--workers", type=int, default=0, help="DataLoader workers (0 = bezpečné na Windows)")
+    ap.add_argument("--seed", type=int, default=42, help="RNG seed pro reprodukovatelnost")
     ap.add_argument("--device", default=None, help="cuda/cpu (default auto)")
     ap.add_argument("--smoke", action="store_true",
                     help="rychlý smoke-test: 8 train / 4 val dlaždice, 2 epochy, malý batch")

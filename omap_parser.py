@@ -35,12 +35,24 @@ from omap_model import (
 OMAP_NS = "http://openorienteering.org/apps/mapper/xml/v2"
 
 
-def _tag(name: str) -> str:
+def omap_tag(name: str) -> str:
     """
     Pomocník: vytvoří plné jméno tagu s namespace.
     "colors" -> "{http://openorienteering.org/apps/mapper/xml/v2}colors"
     """
     return f"{{{OMAP_NS}}}{name}"
+
+
+def iter_map_objects(root: ET.Element) -> list[ET.Element]:
+    """
+    Vrátí skutečné mapové objekty = <object> jako přímé děti <objects> kontejneru.
+
+    POZOR: prosté ".//object" by chytlo i phantom <object> uvnitř <symbols>
+    definic — template geometrie patternů/elementů (souřadnice kruhu pro 115
+    Depression, čar pro 418 atd.), ne mapové objekty. XPath ".//objects/object"
+    je odfiltruje. Single source of truth pro tento (netriviální) výběr.
+    """
+    return root.findall(f".//{omap_tag('objects')}/{omap_tag('object')}")
 
 
 def _attr_int(elem: ET.Element, name: str, default: int = 0) -> int:
@@ -95,7 +107,7 @@ def _parse_color(elem: ET.Element) -> Color:
 
     # RGB hodnoty jsou v <rgb r="..." g="..." b="..."/> child elementu.
     # Pokud chybí (staré soubory?), spočítáme RGB triviálně z CMYK.
-    rgb_elem = elem.find(_tag("rgb"))
+    rgb_elem = elem.find(omap_tag("rgb"))
     if rgb_elem is not None:
         r = _attr_float(rgb_elem, "r")
         g = _attr_float(rgb_elem, "g")
@@ -110,9 +122,9 @@ def _parse_color(elem: ET.Element) -> Color:
     # Spot color name — pokud existuje <namedcolor>, vezmeme jeho text.
     # Cesta: <spotcolors><namedcolor>NÁZEV</namedcolor></spotcolors>
     spot_name: Optional[str] = None
-    spot_elem = elem.find(_tag("spotcolors"))
+    spot_elem = elem.find(omap_tag("spotcolors"))
     if spot_elem is not None:
-        named = spot_elem.find(_tag("namedcolor"))
+        named = spot_elem.find(omap_tag("namedcolor"))
         if named is not None and named.text:
             spot_name = named.text.strip()
 
@@ -147,11 +159,11 @@ def _color_ref_from_symbol_body(body_elem: ET.Element) -> int:
     Bere přímý atribut, nezasahuje rekurzivně.
     """
     tag = body_elem.tag
-    if tag == _tag("line_symbol"):
+    if tag == omap_tag("line_symbol"):
         return _attr_int(body_elem, "color", NO_COLOR)
-    if tag == _tag("area_symbol"):
+    if tag == omap_tag("area_symbol"):
         return _attr_int(body_elem, "inner_color", NO_COLOR)
-    if tag == _tag("point_symbol"):
+    if tag == omap_tag("point_symbol"):
         # Pro point: inner > outer (stejná logika jako symbol_to_color_ref v compare_to_omap)
         inner = _attr_int(body_elem, "inner_color", NO_COLOR)
         if inner != NO_COLOR:
@@ -167,7 +179,7 @@ def _color_ref_from_wrapped_symbol(symbol_wrapper: ET.Element) -> int:
     point_symbol s elementy, jde se rekurzivně dál (Vineyard-style nesting).
     """
     for child_tag in ("line_symbol", "area_symbol", "point_symbol"):
-        body = symbol_wrapper.find(_tag(child_tag))
+        body = symbol_wrapper.find(omap_tag(child_tag))
         if body is None:
             continue
         color = _color_ref_from_symbol_body(body)
@@ -188,10 +200,10 @@ def _secondary_color_for_line(line_elem: ET.Element) -> int:
     (nebo line/area_symbol) s barvou.
     """
     for sub_tag in ("mid_symbol", "start_symbol", "end_symbol"):
-        sub = line_elem.find(_tag(sub_tag))
+        sub = line_elem.find(omap_tag(sub_tag))
         if sub is None:
             continue
-        wrapper = sub.find(_tag("symbol"))
+        wrapper = sub.find(omap_tag("symbol"))
         if wrapper is None:
             continue
         color = _color_ref_from_wrapped_symbol(wrapper)
@@ -207,7 +219,7 @@ def _secondary_color_for_area(area_elem: ET.Element) -> int:
         - pattern type="1" (line pattern): barva přímo jako 'color' atribut.
         - pattern type="2" (point pattern): vnořený <symbol> wrapper s body.
     """
-    for pattern in area_elem.findall(_tag("pattern")):
+    for pattern in area_elem.findall(omap_tag("pattern")):
         ptype = _attr_int(pattern, "type", 0)
         if ptype == 1:
             # Line pattern — color atribut přímo na <pattern>.
@@ -216,7 +228,7 @@ def _secondary_color_for_area(area_elem: ET.Element) -> int:
                 return color
             # Některé varianty mohou mít i nested — pokračujeme do fallbacku.
         # Point pattern (ptype=2) nebo line pattern bez direct color: hledej nested.
-        wrapper = pattern.find(_tag("symbol"))
+        wrapper = pattern.find(omap_tag("symbol"))
         if wrapper is None:
             continue
         color = _color_ref_from_wrapped_symbol(wrapper)
@@ -230,8 +242,8 @@ def _secondary_color_for_point(point_elem: ET.Element) -> int:
     Hledá barvu v <element> children <point_symbol>.
     Každý <element> obsahuje <symbol> wrapper → line/area/point_symbol s barvou.
     """
-    for element in point_elem.findall(_tag("element")):
-        wrapper = element.find(_tag("symbol"))
+    for element in point_elem.findall(omap_tag("element")):
+        wrapper = element.find(omap_tag("symbol"))
         if wrapper is None:
             continue
         color = _color_ref_from_wrapped_symbol(wrapper)
@@ -244,7 +256,7 @@ def _secondary_color_for_point(point_elem: ET.Element) -> int:
 
 def _parse_description(symbol_elem: ET.Element) -> str:
     """Extrahuje text z <description>...</description> child elementu."""
-    desc_elem = symbol_elem.find(_tag("description"))
+    desc_elem = symbol_elem.find(omap_tag("description"))
     if desc_elem is not None and desc_elem.text:
         return desc_elem.text.strip()
     return ""
@@ -274,7 +286,7 @@ def _parse_line_symbol(elem: ET.Element) -> LineSymbol:
         </line_symbol>
     </symbol>
     """
-    line_elem = elem.find(_tag("line_symbol"))
+    line_elem = elem.find(omap_tag("line_symbol"))
     # Pokud někdy chybí line_symbol child (poškozený soubor), vrátíme prázdný.
     if line_elem is None:
         return LineSymbol(
@@ -300,9 +312,9 @@ def _parse_line_symbol(elem: ET.Element) -> LineSymbol:
         dash_length=_attr_int(line_elem, "dash_length"),
         break_length=_attr_int(line_elem, "break_length"),
         segment_length=_attr_int(line_elem, "segment_length"),
-        has_mid_symbol=line_elem.find(_tag("mid_symbol")) is not None,
-        has_start_symbol=line_elem.find(_tag("start_symbol")) is not None,
-        has_end_symbol=line_elem.find(_tag("end_symbol")) is not None,
+        has_mid_symbol=line_elem.find(omap_tag("mid_symbol")) is not None,
+        has_start_symbol=line_elem.find(omap_tag("start_symbol")) is not None,
+        has_end_symbol=line_elem.find(omap_tag("end_symbol")) is not None,
         secondary_color_ref=_secondary_color_for_line(line_elem),
     )
 
@@ -313,7 +325,7 @@ def _parse_point_symbol(elem: ET.Element) -> PointSymbol:
         <point_symbol rotatable="false" inner_radius="375" inner_color="7" outer_width="0" outer_color="-1" elements="0"/>
     </symbol>
     """
-    point_elem = elem.find(_tag("point_symbol"))
+    point_elem = elem.find(omap_tag("point_symbol"))
     if point_elem is None:
         return PointSymbol(
             **_common_symbol_kwargs(elem),
@@ -340,7 +352,7 @@ def _parse_area_symbol(elem: ET.Element) -> AreaSymbol:
     </symbol>
     Patterns (>0) = oblast má vzor (např. tečky pro otevřený les se stromy).
     """
-    area_elem = elem.find(_tag("area_symbol"))
+    area_elem = elem.find(omap_tag("area_symbol"))
     if area_elem is None:
         return AreaSymbol(
             **_common_symbol_kwargs(elem),
@@ -366,7 +378,7 @@ def _parse_text_symbol(elem: ET.Element) -> TextSymbol:
         </text_symbol>
     </symbol>
     """
-    text_elem = elem.find(_tag("text_symbol"))
+    text_elem = elem.find(omap_tag("text_symbol"))
     if text_elem is None:
         return TextSymbol(
             **_common_symbol_kwargs(elem),
@@ -376,14 +388,14 @@ def _parse_text_symbol(elem: ET.Element) -> TextSymbol:
     # Font je v child elementu <font family="..." size="..."/>
     font_family = ""
     font_size = 0
-    font_elem = text_elem.find(_tag("font"))
+    font_elem = text_elem.find(omap_tag("font"))
     if font_elem is not None:
         font_family = _attr_str(font_elem, "family")
         font_size = _attr_int(font_elem, "size")
 
     # Barva je v <text color="N" .../> child elementu, ne na text_symbol.
     color_ref = NO_COLOR
-    text_inner = text_elem.find(_tag("text"))
+    text_inner = text_elem.find(omap_tag("text"))
     if text_inner is not None:
         color_ref = _attr_int(text_inner, "color", NO_COLOR)
 
@@ -414,9 +426,9 @@ def _parse_combined_symbol(elem: ET.Element) -> CombinedSymbol:
     part bez "symbol" atributu (inline definice) — ten přeskočíme (PoC).
     """
     parts: list[int] = []
-    combined_elem = elem.find(_tag("combined_symbol"))
+    combined_elem = elem.find(omap_tag("combined_symbol"))
     if combined_elem is not None:
-        for part in combined_elem.findall(_tag("part")):
+        for part in combined_elem.findall(omap_tag("part")):
             # "symbol" atribut = ID referencovaného sub-symbolu. Chybí u inline
             # definic (PoC: ignorujeme, řešíme jen reference na existující symboly).
             sym_id = part.get("symbol")
@@ -475,25 +487,25 @@ def parse_omap(path: str | Path) -> SymbolLibrary:
     # Měřítko mapy z <georeferencing scale="10000">.
     # Default 10000 (klasická lesní orienťačka 1:10 000) pokud chybí.
     scale = 10000
-    geo_elem = root.find(_tag("georeferencing"))
+    geo_elem = root.find(omap_tag("georeferencing"))
     if geo_elem is not None:
         scale = _attr_int(geo_elem, "scale", 10000)
 
     # Sekce <colors count="N"> obsahuje N <color> elementů.
     # findall vrací všechny matching direct children.
     colors: list[Color] = []
-    colors_elem = root.find(_tag("colors"))
+    colors_elem = root.find(omap_tag("colors"))
     if colors_elem is not None:
-        for color_elem in colors_elem.findall(_tag("color")):
+        for color_elem in colors_elem.findall(omap_tag("color")):
             colors.append(_parse_color(color_elem))
 
     # Sekce <barrier> obaluje <symbols> v některých OMAP verzích.
     # Hledáme <symbols> kdekoliv pod root (jednodušší než vědět přesnou strukturu).
     # ".//tag" je XPath: rekurzivně všude pod root.
     symbols: list[SymbolBase] = []
-    symbols_container = root.find(f".//{_tag('symbols')}")
+    symbols_container = root.find(f".//{omap_tag('symbols')}")
     if symbols_container is not None:
-        for symbol_elem in symbols_container.findall(_tag("symbol")):
+        for symbol_elem in symbols_container.findall(omap_tag("symbol")):
             parsed = _parse_symbol(symbol_elem)
             if parsed is not None:
                 symbols.append(parsed)

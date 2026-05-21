@@ -147,6 +147,9 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 
 ## Infrastruktura
 
+- [ ] **imread_unicode i pro background/probes** — `pic2db.py:543`, `peak_visualizer.py:238`,
+  `border_overlay.py:138` (mark `--background`) stále `cv2.imread` → selže na diakritice v cestě
+  (jako Blatná). Drobné, izomorfní s fixem sezení 16 (omap_mask/build_dataset/separate_demo/detect).
 - [ ] **`requirements.txt`** — explicitní seznam závislostí (numpy, opencv-python, scikit-image). Verze podle aktuálního pip freeze.
 - [ ] **Sprint scope** — sehnat oficiální `ISSprOM_2019-2.omap` template z OOM symbol sets distribuce. Bez něj nelze pokrýt sprint mapy.
 - [ ] **Test ve Slovanka palette** — Slovanka má jinou color paletu než forest sample (priority 19 = Blue vs Yellow). `color_category.py` overrides možná nejsou robustní napříč mapami. Validovat.

@@ -2,6 +2,24 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## Combined area fill v masce + georef nález (sezení 15)
+
+- [x] **Combined area symboly v masce (`_resolve_area_fill`)** — `omap_mask._symbol_class` →
+  `_resolve_area_fill(sym, library, sid_to_sym) -> (class, priorita)|None`: class **i** priorita
+  z jednoho zdroje (dřív roztržené; inline `get_color(inner_color_ref)` by na `CombinedSymbol`
+  spadlo — atribut nemá), pro `CombinedSymbol` rekurzivně (1 úroveň) první AREA part s výplní.
+  `sid_to_sym` = všechny symboly. Zachována logika `inner=-1 → skip` (marsh 309, pattern overlaye).
+  Garching: drawn 1229 → **1538** (+309), gray budovy/canopy **8,6 %** masky (nejen budovy — 8 z 9
+  combined symbolů má area part). **Regrese čistá:** Slovanka (combined bez area part → skip) i forest
+  (combined-area symboly 0 objektů) masky bit-identické. Odstraněn nepoužitý `NO_COLOR` import. [2026-05-21 sezení 15]
+- [x] **Shift-experiment — kvantifikace georef posunu** — re-eval Garching po opravě masky: mIoU
+  0,122 → 0,106 (GT teď kompletní = poctivější). Diagnostika odhalila **čistý translation posun
+  Garching masky +129/+417 px** (bbox výška obsahu 2292=2292 identická, jen origin). Shift masky
+  o (−129,−417) → re-eval: mIoU **0,283**, green **0,617** (5×), yellow 0,351 (3×), bg 0,732.
+  Závěr: georef posun byl **dominantní zkreslič cross-domain** generalizace ploch (ne metoda);
+  zbylé nuly (gray/black/brown) = reálný ISOM↔ISSprOM class gap. Georef root-cause → povýšený TODO.
+  Experimentální `dataset_shift` uklizen (jen na měření). Memory `garching-pgw-shift`. [2026-05-21 sezení 15]
+
 ## %AUDIT:CODE + opravy (sezení 14)
 
 - [x] **%AUDIT:CODE — hloubkový audit** — 7 paralelních agentů přečetlo všech 8223 LOC,

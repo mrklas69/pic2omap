@@ -17,9 +17,13 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
   je jen ~5mm přesný (jen 15 % budov sedí do své velikosti). Potřebuje (a) přesný georef,
   (b) odfiltrovat legendu z `.omap` GT, (c) možná IoU overlap místo centroidu. Bez něj
   se GT (coord) a naše (raster) pozice 1:1 neslícují.
-- [ ] **Georef přesnost `.pgw`** — Garching `.pgw` ~5mm nepřesný vůči rasteru (ne flip,
-  ne konstantní offset — spíš rotace/scale/origin). Bbox shoda (sezení 10) je slepá.
-  Diagnostikovat; opraví i export (krok 7). Souvisí s memory `georef-paper-space-not-world`.
+- [!] **Georef přesnost Garching `.pgw`** — **POVÝŠENO (sezení 15):** ne ~5mm, ale **čistý
+  translation +129/+417 px** (bbox rozměry obsahu sedí: výška 2292=2292, jen origin posunutý —
+  ne rotace, jak se dřív tušilo → snazší oprava). Specifický pro Garching (Slovanka val funguje,
+  green 0,91 → její georef OK). **Dominantní zkreslič cross-domain evalu**: shift masky o (−129,−417)
+  → mIoU 0,106 → 0,283, green 0,12 → 0,62 (sezení 15 shift-experiment). Diagnostikovat root-cause
+  (`.pgw` parsing? `georef.py` refaktor sezení 14? origin/ref_point?), opravit; opraví i export
+  (krok 7, společný `georef.py` → baseline regrese). Memory `georef-paper-space-not-world`, `garching-pgw-shift`.
 - [ ] **Brown-line precision audit (138 vs 66 GT)** — proč 2,1× over. Mix mislabeled
   hnědých bodů (115/116/112/113 nemají point detektor) + over-segmentace vrstevnic.
   Po review identifikovat, kolik je čeho.
@@ -77,10 +81,6 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 - [x] **Komponenta #5 — eval** (sezení 14) — `eval.py`: load checkpoint → per-class IoU (reuse
   `train.evaluate`) + overlay foto|GT|pred. Within-domain mIoU 0,666 (U-Net se učí ✓), cross-domain
   Garching 0,122 (zavádějící — chudá GT + domain gap). → DONE.
-- [!] **Combined area symboly v masce (526.1)** — PRIORITA (sezení 14): budovy ISSprOM 526.1 jsou
-  `COMBINED` (type 16) → `omap_mask` je vynechá → cross-domain eval na sprint mapách je znehodnocený
-  (model trestán za detekci budov, které GT nemá — ověřeno overlayem). Rozbalit combined parts
-  (area fill) do masky. Bez toho je každý sprint/urbánní eval neprůkazný.
 
 ## ML scale track — až po go/no-go pilotu
 

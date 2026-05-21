@@ -149,6 +149,8 @@ PNG + .omap → omap_mask (mask z geometrie) → build_dataset (tiling 512) → 
 ```
 
 - **`omap_mask.py`** — per-pixel class mask from `.omap` area geometry (8 ColorCategory classes).
+  Resolves area fill from plain `AreaSymbol` *and* from the AREA part of `CombinedSymbol`
+  (ISSprOM building `526.1`, canopy, water, paved — 8 of 9 combined symbols carry an area fill).
 - **`build_dataset.py`** — tile (image, mask) pairs → `output/dataset/` + `manifest.json`
   (spatial split of one map = within-domain go/no-go signal).
 - **`train.py`** — smp U-Net (resnet34 / ImageNet), Dice+CE loss, per-class IoU, best-mIoU
@@ -163,11 +165,20 @@ Full training runs on the GPU box ("mrkla"):
 2. install `requirements-ml.txt` with a **CUDA** torch build (see the file header).
 3. `python train.py --epochs 40 --batch 16` → checkpoint at `output/checkpoints/best.pt`.
 
-**Pilot verdict (sezení 14): U-Net learns.** Within-domain (Slovanka val) mean IoU **0.666**,
-dominant classes (bg/green/yellow) 0.91–0.95. Cross-domain (Garching test) is only 0.122 — but
-that is **misleading, not "ML fails"**: the Garching GT mask omits combined buildings (`526.1`,
-skipped by `omap_mask`), plus a forest→sprint domain/type gap and a single training map. The
-blocker is **data, not method** → scale track (more maps + combined buildings in the mask).
+**Pilot verdict: U-Net learns.** Within-domain (Slovanka val) mean IoU **0.666**, dominant
+classes (bg/green/yellow) 0.91–0.95. Cross-domain (Garching test) looked like only 0.122 —
+but that was **misleading, not "ML fails"**, and sezení 15 pinned down why:
+
+- The Garching GT mask used to omit combined buildings (`526.1`); `omap_mask` now resolves the
+  AREA part of combined symbols, so the mask is complete (gray buildings/canopy = 8.6 % of it).
+- The **dominant** distortion was a **georef shift** of the Garching mask vs raster — a clean
+  translation of +129/+417 px (Slovanka's georef is fine). Aligning the mask lifts cross-domain
+  mean IoU 0.106 → **0.283**, green 0.12 → **0.62**: the area-class generalization was hidden by
+  a broken `.pgw`, not by the method.
+- What remains low (gray/black/brown) is a genuine ISOM↔ISSprOM class gap (the model knows
+  buildings as BLACK from forest ISOM; Garching is GRAY) plus a single training map.
+
+Next blockers: fix the Garching `.pgw` translation, then more maps / domains. The method is sound.
 
 ## Docs
 

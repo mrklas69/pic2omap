@@ -99,8 +99,13 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 - [x] **Template-aware symbol codes v detektorech** (sezení 8) — `resolve_brown_line_codes` v `brown_line_v1` + `resolve_default_area_code` v `area_v1`. Caller resolvuje exact kódy z library a předá. Slovanka: 101.0/102.0, default 403.0/406.1/526.0. → DONE.
 - [x] **YELLOW disambiguation over-detection 403.1** (sezení 8) — **nebyla to over-detection, ale mislabeling.** 403.0≡403.1 a 401.0≡401.1 mají identickou RGB, color separation je nerozliší, `deduplicate_by_rgb` zahodí jednu masku. Disambiguace lepila přeživší `.1` variantu. Fix: `build_priority_to_area_code` RGB grouping + base-variant výběr. → DONE.
 - [ ] **GREEN/YELLOW area under-detection** — Slovanka: 404.0 (8/159), 407.0 (47/242), 408.1 (302/630) pod GT. Color separation slévá blízké odstíny do dominantní barvy (403.0/406.1). 407 je navíc pattern (šrafa) → pattern detektor. Per-component context nebo jemnější paleta.
-- [~] **109 Erosion gully discrimination v2** — `erosion_gully_v1` (crossing + pointed cap) **odpojen**, 0/17 precision. GT je jen **2 × 109** ve forest sample. Vyžaduje pozici-based check ("leží mezi 101 sousedy" — sample sousedů perpendiculárně k tangentě segmentu). Soubor zůstává jako reference (helpery `crossing_signal`, `pointed_cap_count`). Memory: `erosion-gully-vs-index-contour`.
-- [~] **103 Form line v2** — `form_line_v1` (co-linear pair heuristika) odpojeno (20/3 = 6.7× over-claim). Sparse GT pattern stejný jako 109 erosion gully. v2 vyžaduje pozici-based check (sekvence ≥ 3 co-linear dashů s pravidelnými gaps) nebo multi-sample validation. Memory: `sparse-gt-naive-detector-trap`.
+- [ ] **109 Erosion gully discrimination v2** — `erosion_gully_v1` byl odpojen (0/17 precision,
+  GT jen 2× 109) a **smazán (sezení 14)**. v2 vyžaduje pozici-based check ("leží mezi 101 sousedy" —
+  sample sousedů perpendiculárně k tangentě). Helper logika (`crossing_signal`, `pointed_cap_count`)
+  v git historii; lessons v memory `erosion-gully-vs-index-contour`.
+- [ ] **103 Form line v2** — `form_line_v1` odpojeno (20/3 = 6.7× over-claim) a **smazáno (sezení 14)**.
+  Sparse GT pattern stejný jako 109. v2 vyžaduje pozici-based check (sekvence ≥ 3 co-linear dashů
+  s pravidelnými gaps) nebo multi-sample validaci. Git historie + memory `sparse-gt-naive-detector-trap`.
 - [ ] **110 Small erosion gully** — `line_width=0` + `mid_symbol` Brown tečka. 16× ve forest sample. Patří do **point/dot detectoru** (sequence clustering), ne brown line. Budoucí `brown_dot_v1`.
 - [x] **gray (budovy) area detektor** (sezení 11) — `area_v1` + GRAY kategorie (MIN_AREA=80, default 526, prefix 5) + `pic2db` GRAY blok s disambiguací. Garching 241 budov (median 1297 px), recall 88 %. → DONE.
 - [x] **ISSprOM hierarchické/combined kódy** (sezení 11) — CombinedSymbol parts parsing (`omap_parser`) + `_promote_to_combined` (526.1.1 → combined 526.1) + resolver pattern `*` + category filtr. Export 220× combined budova. Pozn.: "154 budov ztraceno" byl mislabeling — ty fragmenty (median 26 px) NEjsou budovy, zahození správné. → DONE.
@@ -150,7 +155,9 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 
 ## Parser
 
-- [ ] **CombinedSymbol parts parsing** — `_parse_combined_symbol` v `omap_parser.py` zatím vrací prázdný `parts=[]`. Doplnit dohledáním struktury v OMAP spec (`<symbol type="16">`) a parsováním sub-symbolových odkazů. V `complete map.omap` ~9 combined symbolů (železnice apod.), zatím není blocker pro detekci.
+- [~] **CombinedSymbol parts parsing** — základ HOTOV (sezení 11): `_parse_combined_symbol`
+  plní `parts` z `<part symbol="ID">` (ověřeno auditem sezení 14). Zbývá: inline party
+  (bez `symbol` atributu) se vědomě přeskakují — doplnit, pokud bude potřeba (zatím není blocker).
 
 ## Dokumentace
 
@@ -161,6 +168,25 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 - [ ] **`requirements.txt`** — explicitní seznam závislostí (numpy, opencv-python, scikit-image). Verze podle aktuálního pip freeze.
 - [ ] **Sprint scope** — sehnat oficiální `ISSprOM_2019-2.omap` template z OOM symbol sets distribuce. Bez něj nelze pokrýt sprint mapy.
 - [ ] **Test ve Slovanka palette** — Slovanka má jinou color paletu než forest sample (priority 19 = Blue vs Yellow). `color_category.py` overrides možná nejsou robustní napříč mapami. Validovat.
+
+## Audit follow-up (sezení 14 — zbylé nálezy %AUDIT:CODE)
+
+- [ ] **`parse_coords` kanonizace** — coord-token parsing existuje 3× (`georef._compute_coord_bbox`
+  regex, `compare_to_omap._object_centroid` regex, `omap_mask._parse_coords` split). Sjednotit
+  do `parse_coords(text) -> list[(x,y,flag)]` v `omap_parser`. Rizikovější (georef-citlivé) —
+  ověřit detect/export/mask invarianty po refaktoru.
+- [ ] **`priority == index` assert** — `omap_model.get_color(ref)` indexuje `colors[ref]`, ale
+  `build_category_map` klíčuje `priority`. Invariant ověřen (drží ve 3 reálných souborech), ale
+  kód ho nevaliduje. Doplnit assert/warning v parseru při `colors[i].priority != i`.
+- [ ] **`compare_to_omap` (846 ř.) rozdělení** — míchá 6 vrstev (symbol-mapping / GT-build /
+  mask-counting / 3 formattery / CSV+GTObject / CLI). Oddělit aspoň CSV/review export do
+  `review_export.py`. SLAP je per-funkci OK, problém je kvantita vrstev v jednom souboru.
+- [ ] **Kosmetika (zbytek)** — `NAME_OVERRIDES`/HSV prahy hardcoded v generickém `color_category`
+  (per-soubor paleta = souvisí s D6), CMYK→RGB fallback bez warning (`omap_parser`), lokální
+  importy rozházené v tělech `compare_to_omap` (`re`/`csv`/`Counter` → nahoru).
+
+> Pozn.: per-DPI škálování thresholdů je samostatný velký bod — viz „Per-DPI škálování thresholdů"
+> v sekci Stage 2/3 Cleanup. D2 (sdílená kostra area↔point) vědomě zamítnuta v sezení 14 (KISS).
 
 ## Otevřené architektonické otázky
 

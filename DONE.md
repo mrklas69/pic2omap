@@ -2,6 +2,30 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## %AUDIT:CODE + opravy (sezení 14)
+
+- [x] **%AUDIT:CODE — hloubkový audit** — 7 paralelních agentů přečetlo všech 8223 LOC,
+  konsolidované nálezy (kritické/doporučené/kosmetické). Jediný „kritický" (priority↔index)
+  vyvrácen ověřením 3 reálných `.omap` (invariant `priority==index` drží). [2026-05-21 sezení 14]
+- [x] **Dávka A — kosmetika + docstringy + ML seed** — nepoužité `import sys` (3×), f-string
+  bez interpolace, nadbytečné závorky, tempfile leak (db_model smoke), `_CLASS_NAME`→`CLASS_NAMES`
+  (veřejné), dvojí `val_frac` default → konstanty, zastaralé docstringy (pic2db export, db2omap
+  georef, build_dataset split, morphology closing). `train.py --seed` + `set_seed` + DataLoader
+  generator (reprodukovatelnost). [2026-05-21 sezení 14]
+- [x] **Dávka C — sdílené helpery** — `imread_unicode` v `cli_utils` (UTF-8-safe loader, 6 míst);
+  `omap_tag` (veřejné z `_tag`) + `iter_map_objects` (phantom-fix XPath) v omap_parser, smazány
+  3 lokální kopie `_tag`/`OMAP_NS` + 3 XPath duplikáty; **`georef.py` extrakce** (6 georef funkcí
+  z „zamraženého" db2omap → samostatný modul, importují db2omap/omap_mask/compare_to_omap).
+  Ověřeno: detect 722, export bbox-fit, omap_mask rigorózní georef. [2026-05-21 sezení 14]
+- [x] **Dávka B — DRY/izomorfismus detektorů** — `cmd_detect` area sekce: 8 proměnných + 4 kopie
+  bloků → `area_config` tabulka + smyčka; `_merge_claim` helper (6 inline kopií → 1); point
+  `default_code` (nová `resolve_default_point_code`, izomorfní s area — body dostanou template-aware
+  kód). **722 invariant ověřen** (behavior-preserving). D2 (sdílená kostra area↔point) vědomě
+  vynechána — KISS (area_v1 řádově složitější, callbacky > čitelnost). [2026-05-21 sezení 14]
+- [x] **Dávka D — smazání mrtvého kódu** — `erosion_gully_v1.py` + `form_line_v1.py` (0 importů,
+  helpery nikdo nevolá, v2 vyžaduje jiný přístup; lessons v memory + git). 4 nástroje ponechány
+  v rootu (přesun by rozbil root importy, malý přínos). Net sezení: −609 ř. [2026-05-21 sezení 14]
+
 ## ML pilot segmentace ploch — komponenta #3+4 (sezení 13)
 
 - [x] **`train.py` — U-Net trénink (komponenta #3+4)** — `SegDataset` (čte `manifest.json`,

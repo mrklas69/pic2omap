@@ -53,8 +53,7 @@ color separation cannot tell apart.
 | `area_v1` (YELLOW) | 401/403/404 + default | forest 26 / Slovanka 1482 (1182×403.0) |
 | `area_v1` (BLACK) | 526 Building | forest 59 / Slovanka 448 (1.11× GT) |
 | `area_v1` (GRAY) | 526.1 buildings (sezení 11) | Garching 241 buildings (gray fill, ISSprOM combined) |
-| `point_v1` | 115/536/418 + default (sezení 11) | forest 440 (brown 235/black 58/green 147) — over-claims, point bucket noise |
-| `erosion_gully_v1` | 109 Erosion gully | disconnected (0/17 precision, see memory) |
+| `point_v1` | 115/536/418 + template-aware default | forest 440 (brown 235/black 58/green 147) — over-claims, point bucket noise |
 
 Sezení 11 additions: GRAY building detector + ISSprOM combined-code resolver
 (`526.1.1` → combined `526.1`); `point_v1` (point bucket, over-claims — point
@@ -104,10 +103,11 @@ being silently skipped.
 
 ### DB infrastructure
 - `db_model.py` — `MapObject` / `NonMapElement` / `DBSnapshot` dataclasses + JSON I/O
-- `cli_utils.py` — shared CLI helpers (UTF-8 console)
+- `cli_utils.py` — shared CLI helpers (UTF-8 console, `imread_unicode` for diacritic paths)
 
 ### Stage 2/3 pipeline
-- `omap_model.py`, `omap_parser.py` — OMAP symbol DB (dataclass model + XML parser)
+- `omap_model.py`, `omap_parser.py` — OMAP symbol DB (dataclass model + XML parser; `omap_tag`, `iter_map_objects`)
+- `georef.py` — pixel ↔ OMAP coord transforms (rigorous `.pgw`+georef / bbox-fit fallback); shared by db2omap, omap_mask, compare_to_omap
 - `color_profile.py`, `color_category.py` — color profiles + semantic families
 - `color_separator.py` — palette-based LAB separation
 - `morphology.py`, `components.py`, `skeleton.py` — Stage 3 ops
@@ -118,7 +118,6 @@ being silently skipped.
 - `point_v1.py` — point symbols via point bucket (size + aspect filter)
 - `point_template_poc.py` — discriminative template matching PoC (shape from OMAP geometry)
 - `orientation_v1.py` — map rotation from 601.x north lines
-- `erosion_gully_v1.py`, `form_line_v1.py` — 109/103 experiments (disconnected, kept as reference)
 - `peak_visualizer.py` — shared utility (thickness classification, ID overlay)
 
 ### Exploratory / probes

@@ -71,13 +71,16 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
   prokázal učení** (val mIoU 0.61, bg/green/yellow ~0.9). → DONE.
 - [ ] **Plný trénink na „mrkla"** (GPU) — přenést dataset (30 MB zip output/dataset) + instalovat
   requirements-ml.txt s CUDA torch, `python train.py --epochs 40 --batch 16` → output/checkpoints/
-  best.pt. Víc epoch dotáhne vzácné třídy. **brown 127k px** za 5 epoch CPU nezachycena (val IoU 0) —
-  pokud plný trénink nezabere, class weight / oversample.
-- [ ] **Komponenta #5 — eval** — IoU/Dice per třída na held-out mapě + vizuální overlay
-  predikce vs GT vs foto. Go/no-go pro scale.
-- [ ] **Combined area symboly v masce** — budovy ISSprOM 526.1 jsou `COMBINED` (type 16),
-  ne `AREA` → `omap_mask` je vynechá (Garching gray jen 0.1 %). Pro sprint nutné rozbalit
-  combined parts (area fill part) do masky. Pro lesní core pilot neblokuje.
+  best.pt, pak re-eval přes `eval.py`. Reprodukovatelné (`--seed`), `--workers`/`--threads` připravené.
+  **brown** vzácná třída chytá až po ~11 epochách (sezení 14, 15-epoch běh: 0→0,25) — 40 epoch by mělo
+  dotáhnout; pokud ne, class weight / oversample.
+- [x] **Komponenta #5 — eval** (sezení 14) — `eval.py`: load checkpoint → per-class IoU (reuse
+  `train.evaluate`) + overlay foto|GT|pred. Within-domain mIoU 0,666 (U-Net se učí ✓), cross-domain
+  Garching 0,122 (zavádějící — chudá GT + domain gap). → DONE.
+- [!] **Combined area symboly v masce (526.1)** — PRIORITA (sezení 14): budovy ISSprOM 526.1 jsou
+  `COMBINED` (type 16) → `omap_mask` je vynechá → cross-domain eval na sprint mapách je znehodnocený
+  (model trestán za detekci budov, které GT nemá — ověřeno overlayem). Rozbalit combined parts
+  (area fill) do masky. Bez toho je každý sprint/urbánní eval neprůkazný.
 
 ## ML scale track — až po go/no-go pilotu
 

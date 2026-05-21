@@ -25,6 +25,15 @@ Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs
 - [x] **Dávka D — smazání mrtvého kódu** — `erosion_gully_v1.py` + `form_line_v1.py` (0 importů,
   helpery nikdo nevolá, v2 vyžaduje jiný přístup; lessons v memory + git). 4 nástroje ponechány
   v rootu (přesun by rozbil root importy, malý přínos). Net sezení: −609 ř. [2026-05-21 sezení 14]
+- [x] **`train.py` tuning (--threads + workers)** — volitelný `torch.set_num_threads` (default
+  torch auto = fyzická jádra; HT vynucení může compute-bound trénink zpomalit), `--workers` help
+  (schová data-loading za compute: ~6–7 → ~4 min/epocha na CPU). [2026-05-21 sezení 14]
+- [x] **Komponenta #5 — `eval.py` (ML pilot)** — load checkpoint → per-class IoU na splitu (reuse
+  `train.evaluate`, DRY) + barevný overlay `foto | GT | predikce` (`colorize`, triptych). CLI
+  `--split test/val`/`--n`/`--checkpoint`. **Go/no-go: U-Net SE UČÍ** — within-domain (Slovanka val)
+  mean IoU **0,666** (bg/green/yellow 0,91–0,95). Cross-domain (Garching test) 0,122 = zavádějící
+  (chudá GT bez combined budov + domain/typ gap les→sprint + 15-epoch/1 mapa), ne „ML nefunguje".
+  Ověřovací 15-epoch běh: best mIoU 0,666 (brown chytá až po ~11 epochách). [2026-05-21 sezení 14]
 
 ## ML pilot segmentace ploch — komponenta #3+4 (sezení 13)
 

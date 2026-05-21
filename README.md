@@ -145,7 +145,7 @@ separation we already do in cv2). A cheap pilot answers go/no-go before investin
 synthetic render pipeline for scale.
 
 ```
-PNG + .omap → omap_mask (mask z geometrie) → build_dataset (tiling 512) → train (U-Net)
+PNG + .omap → omap_mask (mask z geometrie) → build_dataset (tiling 512) → train (U-Net) → eval
 ```
 
 - **`omap_mask.py`** — per-pixel class mask from `.omap` area geometry (8 ColorCategory classes).
@@ -153,7 +153,9 @@ PNG + .omap → omap_mask (mask z geometrie) → build_dataset (tiling 512) → 
   (spatial split of one map = within-domain go/no-go signal).
 - **`train.py`** — smp U-Net (resnet34 / ImageNet), Dice+CE loss, per-class IoU, best-mIoU
   checkpoint. Mild augmentation (the pilot's val/test are renders, not scans). `--smoke` for a
-  CPU pipeline check.
+  CPU pipeline check; `--seed` (reproducible), `--workers`/`--threads` (CPU tuning).
+- **`eval.py`** (component #5) — load checkpoint → per-class IoU on a split (reuses
+  `train.evaluate`) + colour overlay `photo | GT | prediction`. `--split test/val`.
 
 Full training runs on the GPU box ("mrkla"):
 
@@ -161,8 +163,11 @@ Full training runs on the GPU box ("mrkla"):
 2. install `requirements-ml.txt` with a **CUDA** torch build (see the file header).
 3. `python train.py --epochs 40 --batch 16` → checkpoint at `output/checkpoints/best.pt`.
 
-Sanity (5 epochs on CPU, within-domain val): mean IoU 0.61, dominant classes (green/yellow)
-~0.9 — the model learns. Cross-domain eval (Garching) is the open go/no-go (component #5).
+**Pilot verdict (sezení 14): U-Net learns.** Within-domain (Slovanka val) mean IoU **0.666**,
+dominant classes (bg/green/yellow) 0.91–0.95. Cross-domain (Garching test) is only 0.122 — but
+that is **misleading, not "ML fails"**: the Garching GT mask omits combined buildings (`526.1`,
+skipped by `omap_mask`), plus a forest→sprint domain/type gap and a single training map. The
+blocker is **data, not method** → scale track (more maps + combined buildings in the mask).
 
 ## Docs
 

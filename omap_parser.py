@@ -55,6 +55,23 @@ def iter_map_objects(root: ET.Element) -> list[ET.Element]:
     return root.findall(f".//{omap_tag('objects')}/{omap_tag('object')}")
 
 
+def parse_coords(text: str) -> list[tuple[int, int, int]]:
+    """
+    Coord string z <coords> → seznam (x, y, flag). Token: 'X Y' nebo 'X Y FLAG',
+    oddělené ';'. Flag (curve-start, hole-point, …) = 0 když chybí.
+
+    Single source of truth pro coord-token parsing. Konzumenti, kterým flag
+    nestačí (centroid, bbox), si ho z výsledku zahodí — netřeba druhý parser.
+    """
+    out: list[tuple[int, int, int]] = []
+    for tok in text.split(";"):
+        parts = tok.split()
+        if len(parts) >= 2:
+            flag = int(parts[2]) if len(parts) >= 3 else 0
+            out.append((int(parts[0]), int(parts[1]), flag))
+    return out
+
+
 def _attr_int(elem: ET.Element, name: str, default: int = 0) -> int:
     """Bezpečné čtení int atributu (vrátí default, pokud chybí)."""
     val = elem.get(name)
@@ -496,8 +513,20 @@ def parse_omap(path: str | Path) -> SymbolLibrary:
     colors: list[Color] = []
     colors_elem = root.find(omap_tag("colors"))
     if colors_elem is not None:
-        for color_elem in colors_elem.findall(omap_tag("color")):
-            colors.append(_parse_color(color_elem))
+        for i, color_elem in enumerate(colors_elem.findall(omap_tag("color"))):
+            color = _parse_color(color_elem)
+            # Invariant priority == poziční index: get_color(ref) indexuje colors[ref],
+            # kde ref je priority hodnota (z inner_color/color). build_category_map zase
+            # klíčuje podle priority. Obě schémata mlčky předpokládají, že splývají —
+            # když ne, get_color tiše vrátí špatnou barvu. Fail-loud (drží ve všech
+            # reálných souborech: priority běží 0,1,2,… v pořadí výskytu).
+            if color.priority != i:
+                raise SystemExit(
+                    f"OMAP {Path(path).name}: color #{i} má priority={color.priority} "
+                    f"(očekáván {i}). Porušen invariant priority==index — get_color by "
+                    f"indexoval špatnou barvu."
+                )
+            colors.append(color)
 
     # Sekce <barrier> obaluje <symbols> v některých OMAP verzích.
     # Hledáme <symbols> kdekoliv pod root (jednodušší než vědět přesnou strukturu).

@@ -45,7 +45,7 @@ from omap_model import (
     SymbolLibrary,
     SymbolType,
 )
-from omap_parser import OMAP_NS, iter_map_objects, omap_tag, parse_omap
+from omap_parser import OMAP_NS, iter_map_objects, omap_tag, parse_coords, parse_omap
 
 
 # --- Mapování symbol → (ComponentType, color_ref) ---
@@ -565,19 +565,17 @@ def _symbol_geometry_type(symbol: SymbolBase) -> str:
 
 def _object_centroid(obj_elem) -> tuple[float, float] | None:
     """
-    Centroid objektu = průměr bodů z <coords>. Coord token "X Y" volitelně s flagem.
-    Vrací None pokud objekt nemá použitelné coords.
+    Centroid objektu = průměr bodů z <coords>. Flag (curve/hole) nás nezajímá,
+    jen pozice. Vrací None pokud objekt nemá použitelné coords.
     """
-    import re
-
     coords_elem = obj_elem.find(omap_tag("coords"))
     if coords_elem is None or not coords_elem.text:
         return None
-    nums = re.findall(r"(-?\d+) (-?\d+)(?: \d+)?", coords_elem.text)
-    if not nums:
+    pts = parse_coords(coords_elem.text)
+    if not pts:
         return None
-    xs = [int(a) for a, _ in nums]
-    ys = [int(b) for _, b in nums]
+    xs = [x for x, _, _ in pts]
+    ys = [y for _, y, _ in pts]
     return sum(xs) / len(xs), sum(ys) / len(ys)
 
 

@@ -33,7 +33,7 @@ from cli_utils import force_utf8_console, imread_unicode
 from color_category import ColorCategory, classify_rgb
 from georef import _build_map_to_proj, _compute_coord_bbox, _parse_georef, _parse_pgw
 from omap_model import AreaSymbol, CombinedSymbol, SymbolBase, SymbolLibrary, SymbolType
-from omap_parser import iter_map_objects, omap_tag, parse_omap
+from omap_parser import iter_map_objects, omap_tag, parse_coords, parse_omap
 
 import xml.etree.ElementTree as ET
 
@@ -111,17 +111,7 @@ def _resolve_area_fill(
 
 
 # --- Parsování geometrie objektu na prstence (outer + holes) ---
-
-
-def _parse_coords(text: str) -> list[tuple[int, int, int]]:
-    """Coord string → seznam (x, y, flag). Token: 'X Y' nebo 'X Y FLAG', oddělené ';'."""
-    out: list[tuple[int, int, int]] = []
-    for tok in text.split(";"):
-        parts = tok.split()
-        if len(parts) >= 2:
-            flag = int(parts[2]) if len(parts) >= 3 else 0
-            out.append((int(parts[0]), int(parts[1]), flag))
-    return out
+# Coord-token parsing = parse_coords (omap_parser, single source of truth).
 
 
 def _cubic_bezier(p0, p1, p2, p3, steps: int) -> list[tuple[float, float]]:
@@ -237,7 +227,7 @@ def build_area_mask(
         coords_elem = obj.find(omap_tag("coords"))
         if coords_elem is None or not coords_elem.text:
             continue
-        rings = _coords_to_rings(_parse_coords(coords_elem.text))
+        rings = _coords_to_rings(parse_coords(coords_elem.text))
         todo.append((priority, cls, rings))
 
     mask = np.zeros((png_h, png_w), dtype=np.uint8)

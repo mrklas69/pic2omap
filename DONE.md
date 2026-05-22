@@ -2,6 +2,20 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## Sezení 19 — compare_to_omap split → review_export.py
+
+- [x] **`compare_to_omap` split** (#3 audit follow-up, S14) — nový `review_export.py` (~310 ř.) =
+  review krok 4: `_gt_by_code`/`_symbol_status`, `load_db`/`db_symbol_counts`, `format_per_symbol_table`,
+  `GTObject`+`parse_gt_objects`+`_object_centroid`+`_symbol_geometry_type`+`_coord_to_loc`, 3× CSV writer.
+  `compare_to_omap.py` 836→549 ř. (symbol→ref mapping, `GroundTruth`+`build_ground_truth`, mask counts,
+  `format_report`, CLI). **Hranice řezu „co s čím porovnává"**: GT vs Stage 3 masky (compare, per
+  category/type) ↔ GT vs DB (review, per ISOM kód). Celý per-symbol blok vzat společně (ne jen CSV),
+  protože `_gt_by_code`/`_symbol_status` sdílí tabulka i CSV → jinak křížový import privátních funkcí.
+  **Lazy import** review funkcí v `main` (`--db` blok) → jednosměrná závislost `review_export→compare`
+  (jen `GroundTruth`), bez cyklu (ověřeno oba směry + cross). Bonus: 3 dead importy pryč (`OMAP_NS`
+  dead už dřív, `omap_tag`/`parse_coords` osiřely přesunem). Behavior-preserving: 3 režimy stdout +
+  3 CSV (37 kódů / 539 GT / 722 detekce) **bit-identické**, 722 invariant drží, `py_compile` OK. [2026-05-22 sezení 19]
+
 ## Sezení 18 — audit follow-up kód: parse_coords + priority assert
 
 - [x] **`parse_coords` kanonizace** — nová `parse_coords(text) -> [(x,y,flag)]` v `omap_parser`

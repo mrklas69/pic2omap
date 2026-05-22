@@ -180,15 +180,14 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 ## Audit follow-up (sezení 14 — zbylé nálezy %AUDIT:CODE)
 
 > `parse_coords` kanonizace + `priority==index` assert HOTOVO (sezení 18, viz DONE).
+> `compare_to_omap` split → `review_export.py` HOTOVO (sezení 19, viz DONE) — řez „co s čím
+> porovnává": compare = GT vs Stage 3 masky (836→549 ř.), review_export = GT vs DB per symbol.
 > „3× duplicita" byla 2+1: `georef._compute_coord_bbox` (regex přes celý `<objects>` blob =
 > jiná operace, bbox-only) vědomě ponechán jako jediný regex skener — georef nedotčen.
 
-- [ ] **`compare_to_omap` (846 ř.) rozdělení** — míchá 6 vrstev (symbol-mapping / GT-build /
-  mask-counting / 3 formattery / CSV+GTObject / CLI). Oddělit aspoň CSV/review export do
-  `review_export.py`. SLAP je per-funkci OK, problém je kvantita vrstev v jednom souboru.
 - [ ] **Kosmetika (zbytek)** — `NAME_OVERRIDES`/HSV prahy hardcoded v generickém `color_category`
   (per-soubor paleta = souvisí s D6), CMYK→RGB fallback bez warning (`omap_parser`), lokální
-  importy rozházené v tělech `compare_to_omap` (`re`/`csv`/`Counter` → nahoru).
+  `csv`/`Counter` importy v tělech funkcí `review_export`/`compare_to_omap` → nahoru (`re` zmizel S18).
 
 > Pozn.: per-DPI škálování thresholdů je samostatný velký bod — viz „Per-DPI škálování thresholdů"
 > v sekci Stage 2/3 Cleanup. D2 (sdílená kostra area↔point) vědomě zamítnuta v sezení 14 (KISS).

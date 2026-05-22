@@ -98,7 +98,8 @@ being silently skipped.
 - `db2omap.py` — DB → OMAP serialization (PoC)
 - `separate_demo.py` — Stage 2 (color separation)
 - `stage3_demo.py` — Stage 3 (morphology + components + skeleton)
-- `compare_to_omap.py` — ground truth metric (`--db` per-symbol table, `--csv-dir` review CSV)
+- `compare_to_omap.py` — ground truth metric (GT vs Stage 3 masks, per category/type); CLI also drives review (`--db`/`--csv-dir`)
+- `review_export.py` — review krok 4: per-symbol GT↔DB table + review CSV export (suma/gt/detail)
 - `dump_symbols.py` — symbol DB overview
 
 ### DB infrastructure

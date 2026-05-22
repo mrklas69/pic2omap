@@ -2,6 +2,21 @@
 
 Hotové úkoly. Migrují z `TODO.md` po dokončení. Detail v `DIARY.md` / `docs/diary/`.
 
+## Sezení 18 — audit follow-up kód: parse_coords + priority assert
+
+- [x] **`parse_coords` kanonizace** — nová `parse_coords(text) -> [(x,y,flag)]` v `omap_parser`
+  (single source of truth, split-based, drží flag). Ověření proti zdroji odhalilo, že „3× duplicita"
+  je **2+1**: `omap_mask._parse_coords` + `compare_to_omap._object_centroid` (oba jeden `<coords>`
+  text) sjednoceny → `parse_coords`; `georef._compute_coord_bbox` (regex přes **celý `<objects>`
+  blob**, bbox-only, vědomě bez full-parse = jiná operace) **ponechán** jako jediný zbylý regex
+  skener → duplicita zmizela bez sáhnutí do georef-citlivého modulu. `compare` přišel o lokální
+  `import re`. Regrese: masky (forest/Slovanka/Garching) + centroidy (24 777 GT) **bit-identické**. [2026-05-22 sezení 18]
+- [x] **`priority == index` hard assert** — parse loop barev validuje `colors[i].priority == i`
+  (`SystemExit` s názvem souboru). Kodifikuje invariant, na kterém stojí `get_color(ref)` (poziční
+  index `colors[ref]`, kde `ref` = priority hodnota) ↔ `build_category_map` (klíč priority). Fail-loud
+  bije tiše-špatnou-barvu. Negativně otestováno (vadné `priority` → assert pálí, ne no-op); na 3
+  reálných souborech prochází. [2026-05-22 sezení 18]
+
 ## Sezení 17 — scale track: georef validace + dataset rozšíření
 
 - [x] **Georef validace 3 nových párů (scale track)** — Blatná/Bedřichovka (S-JTSK Křovák, neg. origin)

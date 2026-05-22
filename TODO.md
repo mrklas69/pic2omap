@@ -179,13 +179,10 @@ Pracovní úkoly. Hotové migrují do `DONE.md`. Brainstorming nápadů → `IDE
 
 ## Audit follow-up (sezení 14 — zbylé nálezy %AUDIT:CODE)
 
-- [ ] **`parse_coords` kanonizace** — coord-token parsing existuje 3× (`georef._compute_coord_bbox`
-  regex, `compare_to_omap._object_centroid` regex, `omap_mask._parse_coords` split). Sjednotit
-  do `parse_coords(text) -> list[(x,y,flag)]` v `omap_parser`. Rizikovější (georef-citlivé) —
-  ověřit detect/export/mask invarianty po refaktoru.
-- [ ] **`priority == index` assert** — `omap_model.get_color(ref)` indexuje `colors[ref]`, ale
-  `build_category_map` klíčuje `priority`. Invariant ověřen (drží ve 3 reálných souborech), ale
-  kód ho nevaliduje. Doplnit assert/warning v parseru při `colors[i].priority != i`.
+> `parse_coords` kanonizace + `priority==index` assert HOTOVO (sezení 18, viz DONE).
+> „3× duplicita" byla 2+1: `georef._compute_coord_bbox` (regex přes celý `<objects>` blob =
+> jiná operace, bbox-only) vědomě ponechán jako jediný regex skener — georef nedotčen.
+
 - [ ] **`compare_to_omap` (846 ř.) rozdělení** — míchá 6 vrstev (symbol-mapping / GT-build /
   mask-counting / 3 formattery / CSV+GTObject / CLI). Oddělit aspoň CSV/review export do
   `review_export.py`. SLAP je per-funkci OK, problém je kvantita vrstev v jednom souboru.
